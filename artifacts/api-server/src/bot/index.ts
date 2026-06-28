@@ -80,13 +80,33 @@ async function deployCommands() {
   }
 }
 
-function getGuildEmoji(guildId: string | null, name: string): string {
-  if (!guildId) return "";
+const CROSS_KEYWORDS = ["cross", "крест", "wrong", "no", "close", "deny", "decline", "reject", "x_", "_x", "nope", "bad", "minus", "delete", "remove"];
+const CHECK_KEYWORDS = ["verify", "check", "correct", "yes", "ok", "tick", "done", "success", "approve", "accept", "right", "good", "plus"];
+
+function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): string {
+  if (!guildId) return type === "cross" ? "❌" : "✅";
   const guild = client.guilds.cache.get(guildId);
-  if (!guild) return "";
-  const emoji = guild.emojis.cache.find((e) => e.name === name);
-  if (!emoji) return "";
-  return emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
+  if (!guild) return type === "cross" ? "❌" : "✅";
+
+  const keywords = type === "cross" ? CROSS_KEYWORDS : CHECK_KEYWORDS;
+
+  // 1. Animated emoji matching keywords
+  const animated = guild.emojis.cache.find(
+    (e) => e.animated === true && keywords.some((k) => e.name?.toLowerCase().includes(k))
+  );
+  if (animated) return `<a:${animated.name}:${animated.id}>`;
+
+  // 2. Any animated emoji as last resort
+  const anyAnimated = guild.emojis.cache.find((e) => e.animated === true);
+  if (anyAnimated && type === "cross") return `<a:${anyAnimated.name}:${anyAnimated.id}>`;
+
+  // 3. Static emoji matching keywords
+  const staticEmoji = guild.emojis.cache.find(
+    (e) => !e.animated && keywords.some((k) => e.name?.toLowerCase().includes(k))
+  );
+  if (staticEmoji) return `<:${staticEmoji.name}:${staticEmoji.id}>`;
+
+  return type === "cross" ? "❌" : "✅";
 }
 
 client.once(Events.ClientReady, async (c) => {
@@ -110,8 +130,8 @@ client.on(Events.MessageCreate, async (message) => {
     const guess = parseInt(message.content.trim());
     if (isNaN(guess)) return;
 
-    const wrongEmoji = getGuildEmoji(guildId, "crossanimated") || getGuildEmoji(guildId, "cross_animated") || "❌";
-    const rightEmoji = getGuildEmoji(guildId, "verifyanimated") || getGuildEmoji(guildId, "verify_animated") || "✅";
+    const wrongEmoji = findAnimatedEmoji(guildId, "cross");
+    const rightEmoji = findAnimatedEmoji(guildId, "check");
 
     if (guess === game.number) {
       try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
@@ -146,8 +166,8 @@ client.on(Events.MessageCreate, async (message) => {
     const game = carGames.get(threadId);
     if (!game) return;
 
-    const wrongEmoji = getGuildEmoji(guildId, "crossanimated") || getGuildEmoji(guildId, "cross_animated") || "❌";
-    const rightEmoji = getGuildEmoji(guildId, "verifyanimated") || getGuildEmoji(guildId, "verify_animated") || "✅";
+    const wrongEmoji = findAnimatedEmoji(guildId, "cross");
+    const rightEmoji = findAnimatedEmoji(guildId, "check");
 
     const guess = message.content.trim().toLowerCase();
     if (guess === game.car) {
@@ -225,7 +245,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-      .spliceFields(1, 1, { name: "👥 Участников", value: `${giveaway.participants.size}`, inline: true });
+      .spliceFields(2, 1, { name: "👥 Участников", value: `${giveaway.participants.size}`, inline: true });
 
     await interaction.update({ embeds: [updatedEmbed] });
     await interaction.followUp({ content: reply, flags: 64 });

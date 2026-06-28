@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import type { Command } from "../client.js";
 
+const MP_ROLE = "<@&1486708220234825949>";
+
 export const monetka: Command = {
   data: new SlashCommandBuilder()
     .setName("монетка")
@@ -16,7 +18,6 @@ export const monetka: Command = {
     const target = interaction.options.getUser("игрок");
     const organizer = interaction.options.getUser("организатор");
     const result = Math.random() < 0.5 ? "🦅 Орёл" : "🔵 Решка";
-
     const orgField = organizer ? [{ name: "🎯 Организатор", value: `<@${organizer.id}>` }] : [];
 
     if (target && target.id !== interaction.user.id) {
@@ -29,7 +30,7 @@ export const monetka: Command = {
         .addFields(orgField)
         .setColor(0xf1c40f)
         .setTimestamp();
-      await interaction.reply({ embeds: [e] });
+      await interaction.reply({ content: MP_ROLE, embeds: [e] });
     } else {
       const e = new EmbedBuilder()
         .setTitle("🪙 Монетка")
@@ -37,7 +38,7 @@ export const monetka: Command = {
         .addFields(orgField)
         .setColor(0xf1c40f)
         .setTimestamp();
-      await interaction.reply({ embeds: [e] });
+      await interaction.reply({ content: MP_ROLE, embeds: [e] });
     }
   },
 };
