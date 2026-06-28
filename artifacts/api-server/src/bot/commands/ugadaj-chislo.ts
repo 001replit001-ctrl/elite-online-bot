@@ -59,7 +59,7 @@ export const ugadajChislo: Command = {
       .setColor(0x3498db)
       .setTimestamp();
 
-    const msg = await channel.send({ embeds: [e] });
+    const msg = await channel.send({ content: "<@&1486708220234825949>", embeds: [e] });
 
     const thread = await channel.threads.create({
       name: "Угадай число ❄️",

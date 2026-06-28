@@ -65,7 +65,7 @@ export const rozygrysh: Command = {
       new ButtonBuilder().setCustomId("giveaway_leave").setLabel("❌ Выйти").setStyle(ButtonStyle.Danger)
     );
 
-    const msg = await channel.send({ embeds: [e], components: [row] });
+    const msg = await channel.send({ content: "<@&1486708220234825949>", embeds: [e], components: [row] });
 
     let threadId: string | undefined;
     try {
