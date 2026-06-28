@@ -7,6 +7,13 @@ import {
   REST,
   Routes,
   ChannelType,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  AttachmentBuilder,
+  PermissionFlagsBits,
+  type TextChannel,
+  type Message,
 } from "discord.js";
 import { client, commands } from "./client.js";
 import { logger } from "../lib/logger.js";
@@ -24,6 +31,17 @@ import {
 } from "./state.js";
 import { renderBoard, checkWinner } from "./commands/krestiki.js";
 import { resolveDuel } from "./commands/duel.js";
+import { ticketPanel } from "./commands/ticket-panel.js";
+import { ticketAdd } from "./commands/ticket-add.js";
+import { ticketRemove } from "./commands/ticket-remove.js";
+import {
+  type TicketData,
+  ticketSetups,
+  openTickets,
+  nextTicketNumber,
+  loadTicketState,
+  saveTicketState,
+} from "./ticket-state.js";
 
 import { say } from "./commands/say.js";
 import { embed } from "./commands/embed.js";
@@ -53,6 +71,7 @@ const allCommands = [
   rassylka, rozygrysh, zavershitRozygrysh,
   monetka, kubik, kno, duel, krestiki,
   info, server, poll, avatar, ping,
+  ticketPanel, ticketAdd, ticketRemove,
 ];
 
 for (const cmd of allCommands) {
@@ -110,6 +129,101 @@ function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): str
   if (staticEmoji) return `<:${staticEmoji.name}:${staticEmoji.id}>`;
 
   return type === "cross" ? "❌" : "✅";
+}
+
+// ── Ticket helpers ──
+
+function buildTicketEmbed(ticket: TicketData, status: "open" | "claimed"): EmbedBuilder {
+  const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
+  const color = status === "claimed" ? 0xf1c40f : 0x5865f2;
+  return new EmbedBuilder()
+    .setTitle(`🎫 Тикет #${paddedNum}`)
+    .setDescription(
+      `**📋 Тема:**\n${ticket.subject}\n\n` +
+      `**📝 Описание:**\n${ticket.description}`
+    )
+    .addFields(
+      { name: "👤 Автор", value: `<@${ticket.userId}>`, inline: true },
+      { name: "📅 Создан", value: `<t:${Math.floor(ticket.createdAt / 1000)}:R>`, inline: true },
+      {
+        name: "📊 Статус",
+        value: status === "claimed"
+          ? `🟡 В работе · <@${ticket.claimedBy}>`
+          : "🔵 Ожидает ответа",
+        inline: false,
+      }
+    )
+    .setColor(color)
+    .setFooter({ text: `ELITE ONLINE • Система тикетов · #${paddedNum}` })
+    .setTimestamp(ticket.createdAt);
+}
+
+function buildTicketButtons(claimed: boolean): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("ticket_claim")
+      .setLabel("👷 Взять тикет")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(claimed),
+    new ButtonBuilder()
+      .setCustomId("ticket_close")
+      .setLabel("🔒 Закрыть тикет")
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function generateTranscript(channel: TextChannel, ticket: TicketData): Promise<string> {
+  const allMessages: Message[] = [];
+  let lastId: string | undefined;
+
+  try {
+    for (let i = 0; i < 5; i++) {
+      const opts: { limit: number; before?: string } = { limit: 100 };
+      if (lastId) opts.before = lastId;
+      const fetched = await channel.messages.fetch(opts);
+      if (fetched.size === 0) break;
+      const arr = [...fetched.values()];
+      lastId = arr[arr.length - 1]?.id;
+      allMessages.unshift(...[...arr].reverse());
+      if (fetched.size < 100) break;
+    }
+  } catch { }
+
+  const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
+  const fmt = (ts: number) =>
+    new Date(ts).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+
+  const header = [
+    "═══════════════════════════════════════════════",
+    `  📋 ТРАНСКРИПТ ТИКЕТА #${paddedNum}`,
+    "═══════════════════════════════════════════════",
+    `  Тема:       ${ticket.subject}`,
+    `  Описание:   ${ticket.description}`,
+    `  Автор:      ${ticket.userId}`,
+    `  Создан:     ${fmt(ticket.createdAt)}`,
+    ticket.claimedBy ? `  Взял:       ${ticket.claimedByName ?? ticket.claimedBy}` : "",
+    `  Закрыт:     ${fmt(Date.now())}`,
+    "═══════════════════════════════════════════════",
+    "",
+  ].filter(Boolean);
+
+  const lines = allMessages.map((msg) => {
+    const time = fmt(msg.createdTimestamp);
+    const tag = msg.author.bot ? "[БОТ]" : "     ";
+    let content = msg.content || "";
+    if (msg.attachments.size > 0) content += ` [${msg.attachments.size} вложение(й)]`;
+    if (!content && msg.embeds.length > 0) content = "[embed]";
+    return content ? `${tag} [${time}] ${msg.author.username}: ${content}` : null;
+  }).filter(Boolean) as string[];
+
+  const footer = [
+    "",
+    "═══════════════════════════════════════════════",
+    `  Всего сообщений: ${lines.length}`,
+    "═══════════════════════════════════════════════",
+  ];
+
+  return [...header, ...lines, ...footer].join("\n");
 }
 
 client.once(Events.ClientReady, async (c) => {
@@ -311,6 +425,78 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  // ── Modal submit ──
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId !== "ticket_modal") return;
+    await interaction.deferReply({ flags: 64 });
+
+    const guildId = interaction.guildId;
+    if (!guildId) { await interaction.editReply("❌ Только для серверов."); return; }
+
+    const setup = ticketSetups.get(guildId);
+    if (!setup) { await interaction.editReply("❌ Система тикетов не настроена. Используйте /тикет-панель."); return; }
+
+    const subject = interaction.fields.getTextInputValue("ticket_subject");
+    const description = interaction.fields.getTextInputValue("ticket_description");
+    const ticketNum = nextTicketNumber(guildId);
+    const paddedNum = String(ticketNum).padStart(4, "0");
+
+    const guild = interaction.guild;
+    if (!guild) { await interaction.editReply("❌ Сервер не найден."); return; }
+
+    const safeUsername = interaction.user.username.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20) || "user";
+
+    let ticketChannel;
+    try {
+      ticketChannel = await guild.channels.create({
+        name: `ticket-${paddedNum}-${safeUsername}`,
+        type: ChannelType.GuildText,
+        topic: `🎫 Тикет #${paddedNum} | Автор: ${interaction.user.tag} | Тема: ${subject}`,
+        permissionOverwrites: [
+          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+          {
+            id: interaction.user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles],
+          },
+          {
+            id: setup.staffRoleId,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles],
+          },
+          {
+            id: interaction.client.user.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages],
+          },
+        ],
+      });
+    } catch (err) {
+      logger.error({ err }, "Не удалось создать тикет-канал");
+      await interaction.editReply("❌ Не удалось создать канал. Проверь права бота (Manage Channels).");
+      return;
+    }
+
+    const ticketData: TicketData = {
+      ticketNumber: ticketNum,
+      userId: interaction.user.id,
+      guildId,
+      channelId: ticketChannel.id,
+      subject,
+      description,
+      createdAt: Date.now(),
+    };
+    openTickets.set(ticketChannel.id, ticketData);
+    saveTicketState();
+
+    await ticketChannel.send({
+      content: `<@${interaction.user.id}> <@&${setup.staffRoleId}>\n\n👋 Добро пожаловать в ваш тикет! Опишите проблему подробнее, если нужно, и дождитесь ответа сотрудника.`,
+      embeds: [buildTicketEmbed(ticketData, "open")],
+      components: [buildTicketButtons(false)],
+      allowedMentions: { users: [interaction.user.id], roles: [setup.staffRoleId] },
+    });
+
+    await interaction.editReply(`✅ Тикет создан! → <#${ticketChannel.id}>`);
+    return;
+  }
+
   if (!interaction.isButton()) return;
   const customId = interaction.customId;
 
@@ -487,6 +673,147 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const resultEmbed = resolveDuel(duelData.hostId, duelData.targetId, duelData.prize);
     await interaction.update({ embeds: [resultEmbed], components: [] });
+    return;
+  }
+
+  // ── Тикеты ──
+
+  if (customId === "ticket_create") {
+    const modal = new ModalBuilder()
+      .setCustomId("ticket_modal")
+      .setTitle("📩 Создать тикет");
+
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("ticket_subject")
+          .setLabel("Тема обращения")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder("Кратко опишите суть обращения")
+          .setRequired(true)
+          .setMaxLength(100)
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId("ticket_description")
+          .setLabel("Подробное описание")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder("Опишите вашу проблему как можно подробнее")
+          .setRequired(true)
+          .setMaxLength(1000)
+      )
+    );
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  if (customId === "ticket_claim") {
+    const ticket = openTickets.get(interaction.channelId);
+    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+
+    const setup = ticketSetups.get(ticket.guildId);
+    const member = interaction.guild?.members.cache.get(interaction.user.id);
+    const isStaff = setup && member?.roles.cache.has(setup.staffRoleId);
+
+    if (!isStaff) { await interaction.reply({ content: "❌ Только сотрудники могут взять тикет.", flags: 64 }); return; }
+    if (ticket.claimedBy) { await interaction.reply({ content: `❌ Тикет уже взят <@${ticket.claimedBy}>.`, flags: 64 }); return; }
+
+    ticket.claimedBy = interaction.user.id;
+    ticket.claimedByName = interaction.user.username;
+    saveTicketState();
+
+    await interaction.update({ embeds: [buildTicketEmbed(ticket, "claimed")], components: [buildTicketButtons(true)] });
+    await interaction.followUp({ content: `👷 Тикет взял <@${interaction.user.id}>. Скоро с вами свяжутся!`, flags: 0 });
+    return;
+  }
+
+  if (customId === "ticket_close") {
+    const ticket = openTickets.get(interaction.channelId);
+    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+
+    const setup = ticketSetups.get(ticket.guildId);
+    const member = interaction.guild?.members.cache.get(interaction.user.id);
+    const isStaff = setup && member?.roles.cache.has(setup.staffRoleId);
+    const isOwner = interaction.user.id === ticket.userId;
+
+    if (!isStaff && !isOwner) {
+      await interaction.reply({ content: "❌ Закрыть тикет может только его автор или сотрудник.", flags: 64 });
+      return;
+    }
+
+    const confirmEmbed = new EmbedBuilder()
+      .setTitle("🔒 Закрыть тикет?")
+      .setDescription(
+        "После закрытия:\n" +
+        "• Транскрипт будет сохранён в лог-канал\n" +
+        "• Канал будет **удалён**\n\n" +
+        "Вы уверены?"
+      )
+      .setColor(0xe74c3c)
+      .setTimestamp();
+
+    const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId("ticket_confirm_close").setLabel("✅ Закрыть").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("ticket_cancel_close").setLabel("❌ Отменить").setStyle(ButtonStyle.Secondary),
+    );
+
+    await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow] });
+    return;
+  }
+
+  if (customId === "ticket_cancel_close") {
+    await interaction.message.delete().catch(() => {});
+    await interaction.deferUpdate().catch(() => {});
+    return;
+  }
+
+  if (customId === "ticket_confirm_close") {
+    const ticket = openTickets.get(interaction.channelId);
+    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+
+    await interaction.deferUpdate().catch(() => {});
+    await interaction.message.delete().catch(() => {});
+
+    const notif = await (interaction.channel as TextChannel | null)?.send("🔒 Закрываю тикет, сохраняю транскрипт...").catch(() => null);
+
+    const transcript = await generateTranscript(interaction.channel as TextChannel, ticket);
+
+    const setup = ticketSetups.get(ticket.guildId);
+    if (setup) {
+      try {
+        const logCh = await interaction.client.channels.fetch(setup.logChannelId);
+        if (logCh && "send" in logCh) {
+          const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
+          const logEmbed = new EmbedBuilder()
+            .setTitle(`📋 Тикет #${paddedNum} закрыт`)
+            .setDescription(
+              `**📋 Тема:** ${ticket.subject}\n\n` +
+              `**👤 Автор:** <@${ticket.userId}>\n` +
+              `**📅 Открыт:** <t:${Math.floor(ticket.createdAt / 1000)}:F>\n` +
+              `**🔒 Закрыт:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+              `**👷 Взял:** ${ticket.claimedBy ? `<@${ticket.claimedBy}>` : "—"}\n` +
+              `**🔐 Закрыл:** <@${interaction.user.id}>`
+            )
+            .setColor(0x95a5a6)
+            .setFooter({ text: "ELITE ONLINE • Система тикетов" })
+            .setTimestamp();
+
+          const buf = Buffer.from(transcript, "utf-8");
+          const attachment = new AttachmentBuilder(buf, { name: `transcript-${paddedNum}.txt` });
+          await (logCh as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [logEmbed], files: [attachment] });
+        }
+      } catch (err) {
+        logger.warn({ err }, "Не удалось отправить транскрипт в лог-канал");
+      }
+    }
+
+    openTickets.delete(interaction.channelId);
+    saveTicketState();
+
+    if (notif) await notif.edit("✅ Транскрипт сохранён. Канал удаляется...").catch(() => {});
+    await new Promise((r) => setTimeout(r, 3000));
+    await interaction.channel?.delete().catch(() => {});
     return;
   }
 });
