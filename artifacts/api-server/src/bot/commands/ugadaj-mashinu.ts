@@ -1,6 +1,11 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
+} from "discord.js";
 import type { Command } from "../client.js";
-import { carGames } from "../state.js";
+import { carGames, threadToCarGame } from "../state.js";
 
 export const ugadajMashinu: Command = {
   data: new SlashCommandBuilder()
@@ -18,10 +23,9 @@ export const ugadajMashinu: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
-    const channelId = interaction.channelId;
-
-    if (carGames.has(channelId)) {
-      await interaction.reply({ content: "❌ В этом канале уже идёт игра! Завершите её командой `/стоп-игра`.", flags: 64 });
+    const channel = interaction.channel;
+    if (!channel || channel.type !== ChannelType.GuildText) {
+      await interaction.reply({ content: "❌ Эту команду можно использовать только в текстовых каналах.", flags: 64 });
       return;
     }
 
@@ -29,24 +33,37 @@ export const ugadajMashinu: Command = {
     const prize = interaction.options.getString("приз", true);
     const photo = interaction.options.getString("фото", true);
 
-    carGames.set(channelId, {
+    const e = new EmbedBuilder()
+      .setTitle("🚗 Игра \"Угадай машину\" началась!")
+      .addFields(
+        { name: "🎁 Приз", value: prize },
+        { name: "🎯 Организатор", value: `<@${interaction.user.id}>` },
+        { name: "📌 Как участвовать", value: "Открой ветку ниже и напиши название машины!" },
+      )
+      .setImage(photo)
+      .setColor(0xe74c3c)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [e] });
+    const msg = await interaction.fetchReply();
+
+    const thread = await channel.threads.create({
+      name: "Угадай машину 🚗",
+      startMessage: msg.id,
+      type: ChannelType.PublicThread,
+    });
+
+    carGames.set(thread.id, {
       car: car.toLowerCase().trim(),
       prize,
       photo,
       hostId: interaction.user.id,
+      threadId: thread.id,
       guesses: new Set(),
+      messageCount: 0,
     });
+    threadToCarGame.set(thread.id, thread.id);
 
-    const e = new EmbedBuilder()
-      .setTitle("🚗 Угадай машину!")
-      .setDescription(
-        `Что это за машина на фото?\n\n🎁 **Приз:** ${prize}\n\n👉 Используй **\`/угадать\`** чтобы назвать модель!`
-      )
-      .setImage(photo)
-      .setColor(0xe74c3c)
-      .setFooter({ text: `Начал: ${interaction.user.username}` })
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [e] });
+    await thread.send(`👋 Игра началась! Напишите название марки и модели машины на фото.`);
   },
 };

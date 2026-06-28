@@ -2,7 +2,10 @@ export interface NumberGame {
   number: number;
   prize: string;
   hostId: string;
-  attempts: Map<string, number>;
+  min: number;
+  max: number;
+  threadId: string;
+  messageCount: number;
 }
 
 export interface CarGame {
@@ -10,7 +13,9 @@ export interface CarGame {
   prize: string;
   photo: string;
   hostId: string;
+  threadId: string;
   guesses: Set<string>;
+  messageCount: number;
 }
 
 export interface Giveaway {
@@ -21,6 +26,7 @@ export interface Giveaway {
   messageId: string;
   ended: boolean;
   winnersCount: number;
+  threadId?: string;
 }
 
 export interface KnoGame {
@@ -50,3 +56,6 @@ export const giveaways = new Map<string, Giveaway>();
 export const knoGames = new Map<string, KnoGame>();
 export const tttGames = new Map<string, TttGame>();
 export const duelRequests = new Map<string, DuelRequest>();
+
+export const threadToNumberGame = new Map<string, string>();
+export const threadToCarGame = new Map<string, string>();

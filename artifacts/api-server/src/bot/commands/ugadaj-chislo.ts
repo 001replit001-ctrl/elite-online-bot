@@ -1,6 +1,11 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
+} from "discord.js";
 import type { Command } from "../client.js";
-import { numberGames } from "../state.js";
+import { numberGames, threadToNumberGame } from "../state.js";
 
 export const ugadajChislo: Command = {
   data: new SlashCommandBuilder()
@@ -13,38 +18,61 @@ export const ugadajChislo: Command = {
       opt.setName("приз").setDescription("Приз для победителя").setRequired(true)
     )
     .addIntegerOption((opt) =>
-      opt.setName("попытки").setDescription("Максимум попыток на игрока (по умолчанию 5)").setRequired(false).setMinValue(1).setMaxValue(20)
+      opt.setName("мин").setDescription("Минимум диапазона (по умолчанию 1)").setRequired(false).setMinValue(1)
+    )
+    .addIntegerOption((opt) =>
+      opt.setName("макс").setDescription("Максимум диапазона (по умолчанию 100)").setRequired(false).setMinValue(2)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
-    const channelId = interaction.channelId;
-
-    if (numberGames.has(channelId)) {
-      await interaction.reply({ content: "❌ В этом канале уже идёт игра! Завершите её командой `/стоп-игра`.", flags: 64 });
+    const channel = interaction.channel;
+    if (!channel || channel.type !== ChannelType.GuildText) {
+      await interaction.reply({ content: "❌ Эту команду можно использовать только в текстовых каналах.", flags: 64 });
       return;
     }
 
     const number = interaction.options.getInteger("число", true);
     const prize = interaction.options.getString("приз", true);
-    const maxAttempts = interaction.options.getInteger("попытки") ?? 5;
+    const min = interaction.options.getInteger("мин") ?? 1;
+    const max = interaction.options.getInteger("макс") ?? 100;
 
-    numberGames.set(channelId, {
-      number,
-      prize,
-      hostId: interaction.user.id,
-      attempts: new Map(),
-    });
+    if (number < min || number > max) {
+      await interaction.reply({ content: `❌ Загаданное число должно быть в диапазоне от **${min}** до **${max}**.`, flags: 64 });
+      return;
+    }
 
     const e = new EmbedBuilder()
-      .setTitle("🔢 Угадай число!")
-      .setDescription(
-        `Я загадал число от **1** до **10000**.\n\n🎁 **Приз:** ${prize}\n🎯 **Попытки на каждого:** ${maxAttempts}\n\n👉 Используй **\`/угадать\`** чтобы назвать своё число!`
+      .setTitle("🎮 Игра \"Угадай число\" началась!")
+      .addFields(
+        { name: "🎁 Приз", value: prize },
+        { name: "🔢 Диапазон", value: `от **${min}** до **${max}**` },
+        { name: "🎯 Организатор", value: `<@${interaction.user.id}>` },
+        { name: "📌 Как участвовать", value: "Открой ветку ниже и пиши своё число!" },
       )
       .setColor(0x3498db)
-      .setFooter({ text: `Начал: ${interaction.user.username}` })
       .setTimestamp();
 
     await interaction.reply({ embeds: [e] });
+    const msg = await interaction.fetchReply();
+
+    const thread = await channel.threads.create({
+      name: "Угадай число ❄️",
+      startMessage: msg.id,
+      type: ChannelType.PublicThread,
+    });
+
+    numberGames.set(thread.id, {
+      number,
+      prize,
+      hostId: interaction.user.id,
+      min,
+      max,
+      threadId: thread.id,
+      messageCount: 0,
+    });
+    threadToNumberGame.set(thread.id, thread.id);
+
+    await thread.send(`👋 Игра началась! Диапазон: **${min}–${max}**. Пишите своё число и проверяйте!`);
   },
 };

@@ -5,6 +5,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   PermissionFlagsBits,
+  ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
 import { giveaways } from "../state.js";
@@ -20,7 +21,11 @@ export const rozygrysh: Command = {
       opt.setName("описание").setDescription("Дополнительное описание розыгрыша").setRequired(false)
     )
     .addIntegerOption((opt) =>
-      opt.setName("победителей").setDescription("Количество победителей (по умолчанию 1)").setRequired(false).setMinValue(1).setMaxValue(10)
+      opt.setName("победителей")
+        .setDescription("Количество победителей (по умолчанию 1)")
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(10)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
@@ -30,9 +35,13 @@ export const rozygrysh: Command = {
     const winnersCount = interaction.options.getInteger("победителей") ?? 1;
 
     const e = new EmbedBuilder()
-      .setTitle("🎉 РОЗЫГРЫШ")
-      .setDescription(
-        `🎁 **Приз:** ${prize}\n${description ? `📝 ${description}\n` : ""}\n👥 **Участников:** 0\n🏆 **Победителей:** ${winnersCount}\n\n➡️ Нажми кнопку **«Участвовать»** чтобы войти в розыгрыш!\n\nЧтобы завершить: \`/завершить-розыгрыш\``
+      .setTitle("🎉 РОЗЫГРЫШ 🎉")
+      .addFields(
+        { name: "🎁 Приз", value: prize },
+        { name: "🏆 Победителей", value: `${winnersCount}` },
+        { name: "👥 Участников", value: "0" },
+        ...(description ? [{ name: "📝 Описание", value: description }] : []),
+        { name: "📌 Участие", value: "Нажмите кнопку **«Участвовать»** ниже!" },
       )
       .setColor(0xf39c12)
       .setTimestamp()
@@ -51,6 +60,21 @@ export const rozygrysh: Command = {
 
     const msg = await interaction.reply({ embeds: [e], components: [row], fetchReply: true });
 
+    let threadId: string | undefined;
+    const channel = interaction.channel;
+    if (channel && channel.type === ChannelType.GuildText) {
+      try {
+        const thread = await channel.threads.create({
+          name: "🎉 Участники розыгрыша",
+          startMessage: msg.id,
+          type: ChannelType.PublicThread,
+        });
+        threadId = thread.id;
+        await thread.send(`👋 Участвуй в розыгрыше нажав кнопку на сообщении выше!\n🎁 **Приз:** ${prize}`);
+      } catch {
+      }
+    }
+
     giveaways.set(msg.id, {
       prize,
       participants: new Set(),
@@ -59,6 +83,7 @@ export const rozygrysh: Command = {
       messageId: msg.id,
       ended: false,
       winnersCount,
+      threadId,
     });
   },
 };
