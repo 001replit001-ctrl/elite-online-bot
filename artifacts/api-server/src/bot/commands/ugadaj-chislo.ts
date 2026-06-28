@@ -23,22 +23,28 @@ export const ugadajChislo: Command = {
     .addIntegerOption((opt) =>
       opt.setName("макс").setDescription("Максимум диапазона (по умолчанию 100)").setRequired(false).setMinValue(2)
     )
+    .addUserOption((opt) =>
+      opt.setName("организатор").setDescription("Тег организатора").setRequired(false)
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
     const channel = interaction.channel;
     if (!channel || channel.type !== ChannelType.GuildText) {
-      await interaction.reply({ content: "❌ Эту команду можно использовать только в текстовых каналах.", flags: 64 });
+      await interaction.reply({ content: "❌ Только для текстовых каналов.", flags: 64 });
       return;
     }
+
+    await interaction.deferReply({ flags: 64 });
 
     const number = interaction.options.getInteger("число", true);
     const prize = interaction.options.getString("приз", true);
     const min = interaction.options.getInteger("мин") ?? 1;
     const max = interaction.options.getInteger("макс") ?? 100;
+    const organizer = interaction.options.getUser("организатор") ?? interaction.user;
 
     if (number < min || number > max) {
-      await interaction.reply({ content: `❌ Загаданное число должно быть в диапазоне от **${min}** до **${max}**.`, flags: 64 });
+      await interaction.editReply(`❌ Загаданное число должно быть в диапазоне от **${min}** до **${max}**.`);
       return;
     }
 
@@ -47,14 +53,13 @@ export const ugadajChislo: Command = {
       .addFields(
         { name: "🎁 Приз", value: prize },
         { name: "🔢 Диапазон", value: `от **${min}** до **${max}**` },
-        { name: "🎯 Организатор", value: `<@${interaction.user.id}>` },
+        { name: "🎯 Организатор", value: `<@${organizer.id}>` },
         { name: "📌 Как участвовать", value: "Открой ветку ниже и пиши своё число!" },
       )
       .setColor(0x3498db)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [e] });
-    const msg = await interaction.fetchReply();
+    const msg = await channel.send({ embeds: [e] });
 
     const thread = await channel.threads.create({
       name: "Угадай число ❄️",
@@ -65,7 +70,7 @@ export const ugadajChislo: Command = {
     numberGames.set(thread.id, {
       number,
       prize,
-      hostId: interaction.user.id,
+      hostId: organizer.id,
       min,
       max,
       threadId: thread.id,
@@ -73,6 +78,7 @@ export const ugadajChislo: Command = {
     });
     threadToNumberGame.set(thread.id, thread.id);
 
-    await thread.send(`👋 Игра началась! Диапазон: **${min}–${max}**. Пишите своё число и проверяйте!`);
+    await thread.send(`👋 Игра началась! Диапазон: **${min}–${max}**. Напишите своё число!`);
+    await interaction.editReply("✅ Игра создана!");
   },
 };

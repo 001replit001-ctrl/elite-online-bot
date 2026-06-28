@@ -9,7 +9,13 @@ import type { Command } from "../client.js";
 import { duelRequests } from "../state.js";
 
 const weapons = ["⚔️ Меч", "🏹 Лук", "🔱 Трезубец", "🪓 Топор", "🗡️ Кинжал"];
-const actions = ["прорвался сквозь защиту", "нанёс смертельный удар", "застал врасплох", "использовал хитрый приём", "одержал победу в честном бою"];
+const actions = [
+  "прорвался сквозь защиту",
+  "нанёс смертельный удар",
+  "застал врасплох",
+  "использовал хитрый приём",
+  "одержал победу в честном бою",
+];
 
 export const duel: Command = {
   data: new SlashCommandBuilder()
@@ -20,11 +26,15 @@ export const duel: Command = {
     )
     .addStringOption((opt) =>
       opt.setName("ставка").setDescription("Что поставить на кон (необязательно)").setRequired(false)
+    )
+    .addUserOption((opt) =>
+      opt.setName("организатор").setDescription("Тег организатора").setRequired(false)
     ),
 
   async execute(interaction) {
     const target = interaction.options.getUser("игрок", true);
     const prize = interaction.options.getString("ставка") ?? "";
+    const organizer = interaction.options.getUser("организатор");
 
     if (target.id === interaction.user.id) {
       await interaction.reply({ content: "❌ Нельзя вызвать самого себя!", flags: 64 });
@@ -40,21 +50,27 @@ export const duel: Command = {
       new ButtonBuilder().setCustomId("duel_decline").setLabel("🏳️ Отказаться").setStyle(ButtonStyle.Danger)
     );
 
+    const fields = [
+      ...(prize ? [{ name: "🏆 Ставка", value: prize }] : []),
+      ...(organizer ? [{ name: "🎯 Организатор", value: `<@${organizer.id}>` }] : []),
+    ];
+
     const e = new EmbedBuilder()
       .setTitle("⚔️ Вызов на дуэль!")
       .setDescription(
-        `<@${interaction.user.id}> вызывает <@${target.id}> на дуэль!\n\n${prize ? `🏆 **Ставка:** ${prize}\n\n` : ""}⏳ <@${target.id}>, принимаешь вызов?`
+        `<@${interaction.user.id}> вызывает <@${target.id}> на дуэль!\n\n⏳ <@${target.id}>, принимаешь вызов?`
       )
       .setColor(0xe74c3c)
       .setTimestamp();
 
-    const msg = await interaction.reply({ embeds: [e], components: [row], fetchReply: true });
+    if (fields.length) e.addFields(fields);
 
-    duelRequests.set(msg.id, {
-      hostId: interaction.user.id,
-      targetId: target.id,
-      prize,
-    });
+    await interaction.deferReply({ flags: 64 });
+    const ch = interaction.channel;
+    if (!ch || !("send" in ch)) { await interaction.editReply("❌ Не могу отправить."); return; }
+    const msg = await (ch as { send: (opts: unknown) => Promise<{ id: string; edit: (opts: unknown) => Promise<unknown> }> }).send({ embeds: [e], components: [row] });
+
+    duelRequests.set(msg.id, { hostId: interaction.user.id, targetId: target.id, prize });
 
     setTimeout(() => {
       if (duelRequests.has(msg.id)) {
@@ -62,6 +78,8 @@ export const duel: Command = {
         msg.edit({ components: [] }).catch(() => {});
       }
     }, 60_000);
+
+    await interaction.editReply("✅ Вызов отправлен!");
   },
 };
 
@@ -71,13 +89,11 @@ export function resolveDuel(hostId: string, targetId: string, prize: string) {
   const weapon = weapons[Math.floor(Math.random() * weapons.length)];
   const action = actions[Math.floor(Math.random() * actions.length)];
 
-  const e = new EmbedBuilder()
+  return new EmbedBuilder()
     .setTitle("⚔️ Дуэль завершена!")
     .setDescription(
       `Бойцы сошлись в схватке...\n\n🗡️ <@${winner}> взял **${weapon}** и ${action}!\n\n🏆 **Победитель:** <@${winner}>\n💀 **Проиграл:** <@${loser}>${prize ? `\n\n🎁 **Ставка:** ${prize}` : ""}`
     )
     .setColor(0xe74c3c)
     .setTimestamp();
-
-  return e;
 }

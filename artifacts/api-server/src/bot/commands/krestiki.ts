@@ -46,10 +46,14 @@ export const krestiki: Command = {
     .setDescription("Сыграть в крестики-нолики с другим игроком")
     .addUserOption((opt) =>
       opt.setName("игрок").setDescription("Соперник").setRequired(true)
+    )
+    .addUserOption((opt) =>
+      opt.setName("организатор").setDescription("Тег организатора").setRequired(false)
     ),
 
   async execute(interaction) {
     const target = interaction.options.getUser("игрок", true);
+    const organizer = interaction.options.getUser("организатор");
 
     if (target.id === interaction.user.id) {
       await interaction.reply({ content: "❌ Нельзя играть с самим собой!", flags: 64 });
@@ -62,23 +66,18 @@ export const krestiki: Command = {
 
     const board: (string | null)[] = Array(9).fill(null);
     const players: [string, string] = [interaction.user.id, target.id];
+    const orgField = organizer ? [{ name: "🎯 Организатор", value: `<@${organizer.id}>` }] : [];
 
     const e = new EmbedBuilder()
       .setTitle("❌ Крестики-нолики ⭕")
-      .setDescription(
-        `<@${players[0]}> ❌ vs <@${players[1]}> ⭕\n\n🎯 Ход: <@${players[0]}> (❌)`
-      )
+      .setDescription(`<@${players[0]}> ❌ vs <@${players[1]}> ⭕\n\n🎯 Ход: <@${players[0]}> (❌)`)
+      .addFields(orgField)
       .setColor(0x3498db)
       .setTimestamp();
 
     const rows = renderBoard(board);
     const msg = await interaction.reply({ embeds: [e], components: rows, fetchReply: true });
 
-    tttGames.set(msg.id, {
-      board,
-      players,
-      currentTurn: 0,
-      messageId: msg.id,
-    });
+    tttGames.set(msg.id, { board, players, currentTurn: 0, messageId: msg.id });
   },
 };

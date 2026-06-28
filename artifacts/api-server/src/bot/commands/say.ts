@@ -14,15 +14,17 @@ export const say: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const text = interaction.options.getString("сообщение", true);
     const channel = interaction.options.getChannel("канал") ?? interaction.channel;
 
     if (!channel || !("send" in channel)) {
-      await interaction.reply({ content: "❌ Не могу отправить в этот канал.", flags: 64 });
+      await interaction.editReply("❌ Не могу отправить в этот канал.");
       return;
     }
 
     await (channel as { send: (text: string) => Promise<unknown> }).send(text);
-    await interaction.reply({ content: "✅ Сообщение отправлено!", flags: 64 });
+    await interaction.editReply("✅ Отправлено!");
   },
 };

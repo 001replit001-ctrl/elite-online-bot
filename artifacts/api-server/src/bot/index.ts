@@ -6,10 +6,20 @@ import {
   ButtonStyle,
   REST,
   Routes,
+  ChannelType,
 } from "discord.js";
 import { client, commands } from "./client.js";
 import { logger } from "../lib/logger.js";
-import { giveaways, knoGames, tttGames, duelRequests } from "./state.js";
+import {
+  giveaways,
+  knoGames,
+  tttGames,
+  duelRequests,
+  numberGames,
+  carGames,
+  threadToNumberGame,
+  threadToCarGame,
+} from "./state.js";
 import { renderBoard, checkWinner } from "./commands/krestiki.js";
 import { resolveDuel } from "./commands/duel.js";
 
@@ -70,11 +80,101 @@ async function deployCommands() {
   }
 }
 
+function getGuildEmoji(guildId: string | null, name: string): string {
+  if (!guildId) return "";
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return "";
+  const emoji = guild.emojis.cache.find((e) => e.name === name);
+  if (!emoji) return "";
+  return emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`;
+}
+
 client.once(Events.ClientReady, async (c) => {
   logger.info(`🤖 Бот запущен как ${c.user.tag}`);
   await deployCommands();
 });
 
+// ── MessageCreate: обработка ответов в ветках ──
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) return;
+  if (message.channel.type !== ChannelType.PublicThread && message.channel.type !== ChannelType.PrivateThread) return;
+
+  const threadId = message.channel.id;
+  const guildId = message.guildId;
+
+  // Игра "Угадай число"
+  if (threadToNumberGame.has(threadId)) {
+    const game = numberGames.get(threadId);
+    if (!game) return;
+
+    const guess = parseInt(message.content.trim());
+    if (isNaN(guess)) return;
+
+    const wrongEmoji = getGuildEmoji(guildId, "crossanimated") || getGuildEmoji(guildId, "cross_animated") || "❌";
+    const rightEmoji = getGuildEmoji(guildId, "verifyanimated") || getGuildEmoji(guildId, "verify_animated") || "✅";
+
+    if (guess === game.number) {
+      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+
+      numberGames.delete(threadId);
+      threadToNumberGame.delete(threadId);
+
+      await message.channel.send(
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔢 **Загаданное число:** ${game.number}`
+      );
+
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        await message.channel.setLocked(true);
+        await message.channel.setArchived(true);
+      } catch {
+        logger.warn({ threadId }, "Не удалось закрыть ветку");
+      }
+    } else {
+      try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+      if (guess < game.number) {
+        await message.reply(`📉 Слишком мало! Попробуй больше.`).catch(() => {});
+      } else {
+        await message.reply(`📈 Слишком много! Попробуй меньше.`).catch(() => {});
+      }
+    }
+    return;
+  }
+
+  // Игра "Угадай машину"
+  if (threadToCarGame.has(threadId)) {
+    const game = carGames.get(threadId);
+    if (!game) return;
+
+    const wrongEmoji = getGuildEmoji(guildId, "crossanimated") || getGuildEmoji(guildId, "cross_animated") || "❌";
+    const rightEmoji = getGuildEmoji(guildId, "verifyanimated") || getGuildEmoji(guildId, "verify_animated") || "✅";
+
+    const guess = message.content.trim().toLowerCase();
+    if (guess === game.car) {
+      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+
+      carGames.delete(threadId);
+      threadToCarGame.delete(threadId);
+
+      await message.channel.send(
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🚗 **Машина была:** ${game.car}`
+      );
+
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        await message.channel.setLocked(true);
+        await message.channel.setArchived(true);
+      } catch {
+        logger.warn({ threadId }, "Не удалось закрыть ветку");
+      }
+    } else {
+      try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+    }
+    return;
+  }
+});
+
+// ── Slash команды ──
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isChatInputCommand()) {
     const command = commands.get(interaction.commandName);
@@ -83,7 +183,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await command.execute(interaction);
     } catch (err) {
       logger.error({ err, cmd: interaction.commandName }, "Ошибка выполнения команды");
-      const msg = { content: "❌ Произошла ошибка при выполнении команды.", flags: 64 as const };
+      const msg = { content: "❌ Произошла ошибка.", flags: 64 as const };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(msg).catch(() => {});
       } else {
@@ -94,7 +194,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (!interaction.isButton()) return;
-
   const customId = interaction.customId;
 
   // ── Розыгрыш ──
@@ -125,17 +224,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reply = "👋 Ты вышел из розыгрыша.";
     }
 
-    const winnersCount = (giveaway as { winnersCount?: number }).winnersCount ?? 1;
-    const e = new EmbedBuilder()
-      .setTitle("🎉 РОЗЫГРЫШ")
-      .setDescription(
-        `🎁 **Приз:** ${giveaway.prize}\n👥 **Участников:** ${giveaway.participants.size}\n🏆 **Победителей:** ${winnersCount}\n\n➡️ Нажми кнопку **«Участвовать»** чтобы войти!\n\nЧтобы завершить: \`/завершить-розыгрыш\``
-      )
-      .setColor(0xf39c12)
-      .setTimestamp()
-      .setFooter({ text: `Организатор: ${interaction.guild?.members.cache.get(giveaway.hostId)?.user.username ?? "Неизвестен"}` });
+    const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+      .spliceFields(1, 1, { name: "👥 Участников", value: `${giveaway.participants.size}`, inline: true });
 
-    await interaction.update({ embeds: [e] });
+    await interaction.update({ embeds: [updatedEmbed] });
     await interaction.followUp({ content: reply, flags: 64 });
     return;
   }
@@ -146,10 +238,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const game = knoGames.get(msgId);
 
-    if (!game) {
-      await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 });
-      return;
-    }
+    if (!game) { await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 }); return; }
 
     const userId = interaction.user.id;
     if (userId !== game.hostId && userId !== game.targetId) {
@@ -158,16 +247,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (userId === game.hostId) {
-      if (game.hostChoice) {
-        await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 });
-        return;
-      }
+      if (game.hostChoice) { await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 }); return; }
       game.hostChoice = choice;
     } else {
-      if (game.targetChoice) {
-        await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 });
-        return;
-      }
+      if (game.targetChoice) { await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 }); return; }
       game.targetChoice = choice;
     }
 
@@ -177,18 +260,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     knoGames.delete(msgId);
-
     const beats: Record<string, string> = { камень: "ножницы", ножницы: "бумага", бумага: "камень" };
     const emojiMap: Record<string, string> = { камень: "🪨", ножницы: "✂️", бумага: "📄" };
 
     let result: string;
-    if (game.hostChoice === game.targetChoice) {
-      result = "🤝 Ничья!";
-    } else if (beats[game.hostChoice] === game.targetChoice) {
-      result = `🏆 Победил <@${game.hostId}>!`;
-    } else {
-      result = `🏆 Победил <@${game.targetId}>!`;
-    }
+    if (game.hostChoice === game.targetChoice) result = "🤝 Ничья!";
+    else if (beats[game.hostChoice] === game.targetChoice) result = `🏆 Победил <@${game.hostId}>!`;
+    else result = `🏆 Победил <@${game.targetId}>!`;
 
     const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId("kno_done").setLabel("Игра окончена").setStyle(ButtonStyle.Secondary).setDisabled(true)
@@ -212,10 +290,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const game = tttGames.get(msgId);
 
-    if (!game) {
-      await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 });
-      return;
-    }
+    if (!game) { await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 }); return; }
 
     const userId = interaction.user.id;
     const currentPlayerId = game.players[game.currentTurn];
@@ -232,7 +307,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const symbol = game.currentTurn === 0 ? "❌" : "⭕";
     game.board[idx] = symbol;
-
     const winner = checkWinner(game.board);
     const isFull = game.board.every((c) => c !== null);
 
@@ -243,26 +317,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .setDescription(`🏆 Победил <@${currentPlayerId}> (${symbol})!`)
         .setColor(0x2ecc71)
         .setTimestamp();
-
-      const disabledRows = renderBoard(game.board).map((row) => {
-        row.components.forEach((btn) => btn.setDisabled(true));
-        return row;
-      });
+      const disabledRows = renderBoard(game.board).map((row) => { row.components.forEach((b) => b.setDisabled(true)); return row; });
       await interaction.update({ embeds: [winnerEmbed], components: disabledRows });
       return;
     }
 
     if (isFull) {
       tttGames.delete(msgId);
-      const drawEmbed = new EmbedBuilder()
-        .setTitle("🤝 Ничья!")
-        .setDescription("Все клетки заполнены — никто не победил!")
-        .setColor(0xf39c12)
-        .setTimestamp();
-      const disabledRows = renderBoard(game.board).map((row) => {
-        row.components.forEach((btn) => btn.setDisabled(true));
-        return row;
-      });
+      const drawEmbed = new EmbedBuilder().setTitle("🤝 Ничья!").setDescription("Все клетки заполнены!").setColor(0xf39c12).setTimestamp();
+      const disabledRows = renderBoard(game.board).map((row) => { row.components.forEach((b) => b.setDisabled(true)); return row; });
       await interaction.update({ embeds: [drawEmbed], components: disabledRows });
       return;
     }
@@ -273,9 +336,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const updatedEmbed = new EmbedBuilder()
       .setTitle("❌ Крестики-нолики ⭕")
-      .setDescription(
-        `<@${game.players[0]}> ❌ vs <@${game.players[1]}> ⭕\n\n🎯 Ход: <@${nextPlayer}> (${nextSymbol})`
-      )
+      .setDescription(`<@${game.players[0]}> ❌ vs <@${game.players[1]}> ⭕\n\n🎯 Ход: <@${nextPlayer}> (${nextSymbol})`)
       .setColor(0x3498db)
       .setTimestamp();
 
@@ -288,11 +349,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const duelData = duelRequests.get(msgId);
 
-    if (!duelData) {
-      await interaction.reply({ content: "❌ Вызов устарел или уже обработан.", flags: 64 });
-      return;
-    }
-
+    if (!duelData) { await interaction.reply({ content: "❌ Вызов устарел.", flags: 64 }); return; }
     if (interaction.user.id !== duelData.targetId) {
       await interaction.reply({ content: "❌ Этот вызов не для тебя!", flags: 64 });
       return;
@@ -322,5 +379,16 @@ export async function startBot() {
     logger.error("DISCORD_BOT_TOKEN не задан — бот не запущен");
     return;
   }
+
+  // Keep-alive: пинг себя каждые 4 минуты чтобы не отключаться
+  const port = process.env["PORT"] ?? "8080";
+  setInterval(async () => {
+    try {
+      await fetch(`http://localhost:${port}/api/healthz`);
+    } catch {
+      // ignore
+    }
+  }, 4 * 60 * 1000);
+
   await client.login(token);
 }

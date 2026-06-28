@@ -36,6 +36,8 @@ export const ssylka: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const title = interaction.options.getString("заголовок", true);
     const message = interaction.options.getString("сообщение", true);
     const btnLabel = interaction.options.getString("кнопка", true);
@@ -45,12 +47,12 @@ export const ssylka: Command = {
     const channel = interaction.options.getChannel("канал") ?? interaction.channel;
 
     if (!channel || !("send" in channel)) {
-      await interaction.reply({ content: "❌ Не могу отправить в этот канал.", flags: 64 });
+      await interaction.editReply("❌ Не могу отправить в этот канал.");
       return;
     }
 
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      await interaction.reply({ content: "❌ Ссылка должна начинаться с http:// или https://", flags: 64 });
+      await interaction.editReply("❌ Ссылка должна начинаться с http:// или https://");
       return;
     }
 
@@ -62,8 +64,7 @@ export const ssylka: Command = {
       .setTitle(title)
       .setDescription(message)
       .setColor(color)
-      .setTimestamp()
-      .setFooter({ text: `Отправил ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() });
+      .setTimestamp();
 
     if (image) e.setImage(image);
 
@@ -72,6 +73,6 @@ export const ssylka: Command = {
     );
 
     await (channel as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [e], components: [row] });
-    await interaction.reply({ content: "✅ Сообщение со ссылкой отправлено!", flags: 64 });
+    await interaction.editReply("✅ Сообщение со ссылкой отправлено!");
   },
 };

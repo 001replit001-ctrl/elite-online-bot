@@ -14,10 +14,14 @@ export const kno: Command = {
     .setDescription("Камень-ножницы-бумага против другого игрока")
     .addUserOption((opt) =>
       opt.setName("игрок").setDescription("Кого вызвать на бой").setRequired(true)
+    )
+    .addUserOption((opt) =>
+      opt.setName("организатор").setDescription("Тег организатора").setRequired(false)
     ),
 
   async execute(interaction) {
     const target = interaction.options.getUser("игрок", true);
+    const organizer = interaction.options.getUser("организатор");
 
     if (target.id === interaction.user.id) {
       await interaction.reply({ content: "❌ Нельзя играть с самим собой!", flags: 64 });
@@ -34,11 +38,14 @@ export const kno: Command = {
       new ButtonBuilder().setCustomId("kno_бумага").setLabel("📄 Бумага").setStyle(ButtonStyle.Secondary)
     );
 
+    const orgField = organizer ? [{ name: "🎯 Организатор", value: `<@${organizer.id}>` }] : [];
+
     const e = new EmbedBuilder()
       .setTitle("✂️ Камень-Ножницы-Бумага")
       .setDescription(
-        `<@${interaction.user.id}> вызвал <@${target.id}> на бой!\n\nОба игрока нажимают кнопку — выбор скрытый. Побеждает сильнейший!\n\n⏳ Ожидаем выборы...`
+        `<@${interaction.user.id}> вызвал <@${target.id}> на бой!\n\nОба игрока нажимают кнопку — выбор скрытый!\n\n⏳ Ожидаем выборы...`
       )
+      .addFields(orgField)
       .setColor(0x3498db)
       .setTimestamp();
 
