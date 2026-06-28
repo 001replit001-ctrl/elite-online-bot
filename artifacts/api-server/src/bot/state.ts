@@ -50,8 +50,19 @@ export interface DuelRequest {
   prize: string;
 }
 
+export interface WordGame {
+  word: string;
+  prize: string;
+  hostId: string;
+  threadId: string;
+  revealed: boolean[];
+  guessedLetters: Set<string>;
+  boardMessageId: string;
+}
+
 export const numberGames = new Map<string, NumberGame>();
 export const carGames = new Map<string, CarGame>();
+export const wordGames = new Map<string, WordGame>();
 export const giveaways = new Map<string, Giveaway>();
 export const knoGames = new Map<string, KnoGame>();
 export const tttGames = new Map<string, TttGame>();
@@ -59,3 +70,4 @@ export const duelRequests = new Map<string, DuelRequest>();
 
 export const threadToNumberGame = new Map<string, string>();
 export const threadToCarGame = new Map<string, string>();
+export const threadToWordGame = new Map<string, string>();

@@ -17,8 +17,10 @@ import {
   duelRequests,
   numberGames,
   carGames,
+  wordGames,
   threadToNumberGame,
   threadToCarGame,
+  threadToWordGame,
 } from "./state.js";
 import { renderBoard, checkWinner } from "./commands/krestiki.js";
 import { resolveDuel } from "./commands/duel.js";
@@ -28,6 +30,7 @@ import { embed } from "./commands/embed.js";
 import { ssylka } from "./commands/ssylka.js";
 import { ugadajChislo } from "./commands/ugadaj-chislo.js";
 import { ugadajMashinu } from "./commands/ugadaj-mashinu.js";
+import { ugadajSlovo, buildBoard } from "./commands/ugadaj-slovo.js";
 import { ugadat } from "./commands/ugadat.js";
 import { stopGame } from "./commands/stop-game.js";
 import { rassylka } from "./commands/rassylka.js";
@@ -46,7 +49,7 @@ import { ping } from "./commands/ping.js";
 
 const allCommands = [
   say, embed, ssylka,
-  ugadajChislo, ugadajMashinu, ugadat, stopGame,
+  ugadajChislo, ugadajMashinu, ugadajSlovo, ugadat, stopGame,
   rassylka, rozygrysh, zavershitRozygrysh,
   monetka, kubik, kno, duel, krestiki,
   info, server, poll, avatar, ping,
@@ -184,6 +187,106 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } else {
       try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+    }
+    return;
+  }
+
+  // Игра "Угадай слово"
+  if (threadToWordGame.has(threadId)) {
+    const game = wordGames.get(threadId);
+    if (!game) return;
+
+    const wrongEmoji = findAnimatedEmoji(guildId, "cross");
+    const rightEmoji = findAnimatedEmoji(guildId, "check");
+
+    const input = message.content.trim().toLowerCase();
+
+    // Угадывание слова целиком
+    if (input === game.word) {
+      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+
+      wordGames.delete(threadId);
+      threadToWordGame.delete(threadId);
+
+      await message.channel.send(
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`
+      );
+
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        await message.channel.setLocked(true);
+        await message.channel.setArchived(true);
+      } catch {
+        logger.warn({ threadId }, "Не удалось закрыть ветку");
+      }
+      return;
+    }
+
+    // Угадывание одной буквы
+    if (input.length === 1 && /[а-яёa-z]/i.test(input)) {
+      if (game.guessedLetters.has(input)) {
+        // Буква уже называлась — игнорируем
+        return;
+      }
+
+      game.guessedLetters.add(input);
+
+      if (game.word.includes(input)) {
+        // Буква есть в слове
+        try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+
+        for (let i = 0; i < game.word.length; i++) {
+          if (game.word[i] === input) game.revealed[i] = true;
+        }
+
+        const allRevealed = game.revealed.every(Boolean);
+
+        if (allRevealed) {
+          // Все буквы открыты — победитель
+          wordGames.delete(threadId);
+          threadToWordGame.delete(threadId);
+
+          await message.channel.send(
+            `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`
+          );
+
+          await new Promise((r) => setTimeout(r, 2000));
+          try {
+            await message.channel.setLocked(true);
+            await message.channel.setArchived(true);
+          } catch {
+            logger.warn({ threadId }, "Не удалось закрыть ветку");
+          }
+          return;
+        }
+
+        // Обновляем доску
+        const board = buildBoard(game.word, game.revealed);
+        const revealedCount = game.revealed.filter(Boolean).length;
+        const missCount = [...game.guessedLetters].filter((l) => !game.word.includes(l)).length;
+
+        try {
+          const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
+          await boardMsg.edit(
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ❌ Промахов: **${missCount}**`
+          );
+        } catch { /* сообщение могло быть удалено */ }
+
+      } else {
+        // Буквы нет в слове
+        try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+
+        const board = buildBoard(game.word, game.revealed);
+        const revealedCount = game.revealed.filter(Boolean).length;
+        const missCount = [...game.guessedLetters].filter((l) => !game.word.includes(l)).length;
+
+        try {
+          const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
+          await boardMsg.edit(
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ❌ Промахов: **${missCount}**`
+          );
+        } catch { /* сообщение могло быть удалено */ }
+      }
     }
     return;
   }
