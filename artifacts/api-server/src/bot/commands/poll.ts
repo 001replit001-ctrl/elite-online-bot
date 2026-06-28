@@ -42,15 +42,22 @@ export const poll: Command = {
     const votes = new Map<string, Set<string>>(options.map((_, i) => [String(i), new Set()]));
 
     const buildEmbed = () => {
-      const desc = options
+      const votes_desc = options
         .map((opt, i) => `${emojis[i]} **${opt}** — ${votes.get(String(i))?.size ?? 0} голосов`)
         .join("\n\n");
-      return new EmbedBuilder()
-        .setTitle(`📊 ${question}`)
-        .setDescription(desc)
-        .setColor(0x3498db)
-        .setTimestamp()
+
+      const embed = new EmbedBuilder().setColor(0x3498db).setTimestamp()
         .setFooter({ text: `Опрос от ${interaction.user.username}` });
+
+      if (question.length <= 256) {
+        embed.setTitle(`📊 ${question.slice(0, 253)}`);
+        embed.setDescription(votes_desc);
+      } else {
+        embed.setTitle("📊 Опрос");
+        embed.setDescription(`${question}\n\n${votes_desc}`);
+      }
+
+      return embed;
     };
 
     const buildRow = () =>
