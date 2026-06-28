@@ -152,11 +152,6 @@ client.on(Events.MessageCreate, async (message) => {
       }
     } else {
       try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
-      if (guess < game.number) {
-        await message.reply(`📉 Слишком мало! Попробуй больше.`).catch(() => {});
-      } else {
-        await message.reply(`📈 Слишком много! Попробуй меньше.`).catch(() => {});
-      }
     }
     return;
   }
