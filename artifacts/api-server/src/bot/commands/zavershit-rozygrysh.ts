@@ -1,0 +1,96 @@
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionFlagsBits,
+} from "discord.js";
+import type { Command } from "../client.js";
+import { giveaways } from "../state.js";
+
+export const zavershitRozygrysh: Command = {
+  data: new SlashCommandBuilder()
+    .setName("завершить-розыгрыш")
+    .setDescription("Завершить розыгрыш и выбрать победителя")
+    .addStringOption((opt) =>
+      opt.setName("id").setDescription("ID сообщения розыгрыша (если несколько активных)").setRequired(false)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  async execute(interaction) {
+    const inputId = interaction.options.getString("id");
+
+    let giveaway = inputId ? giveaways.get(inputId) : undefined;
+    let giveawayId = inputId ?? "";
+
+    if (!giveaway) {
+      for (const [id, g] of giveaways) {
+        if (g.channelId === interaction.channelId && !g.ended) {
+          giveaway = g;
+          giveawayId = id;
+          break;
+        }
+      }
+    }
+
+    if (!giveaway) {
+      await interaction.reply({ content: "❌ В этом канале нет активных розыгрышей.", flags: 64 });
+      return;
+    }
+
+    if (giveaway.hostId !== interaction.user.id && !interaction.memberPermissions?.has("Administrator")) {
+      await interaction.reply({ content: "❌ Завершить розыгрыш может только организатор или администратор.", flags: 64 });
+      return;
+    }
+
+    giveaway.ended = true;
+
+    const participants = [...giveaway.participants];
+    const winnersCount = (giveaway as { winnersCount?: number }).winnersCount ?? 1;
+
+    if (participants.length === 0) {
+      const e = new EmbedBuilder()
+        .setTitle("🎉 Розыгрыш завершён")
+        .setDescription(`**Приз:** ${giveaway.prize}\n\n😔 Никто не участвовал...`)
+        .setColor(0xe74c3c)
+        .setTimestamp();
+      await interaction.reply({ embeds: [e] });
+      giveaways.delete(giveawayId);
+      return;
+    }
+
+    const shuffled = participants.sort(() => Math.random() - 0.5);
+    const winners = shuffled.slice(0, Math.min(winnersCount, participants.length));
+    const winnersMentions = winners.map((id) => `<@${id}>`).join(", ");
+
+    const e = new EmbedBuilder()
+      .setTitle("🎉 Розыгрыш завершён!")
+      .setDescription(
+        `🎁 **Приз:** ${giveaway.prize}\n\n🏆 **Победитель${winners.length > 1 ? "и" : ""}:** ${winnersMentions}\n\n👥 Участвовало: **${participants.length}** чел.`
+      )
+      .setColor(0x2ecc71)
+      .setTimestamp()
+      .setFooter({ text: `Организатор: ${interaction.user.username}` });
+
+    const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("giveaway_join_done")
+        .setLabel("🎉 Розыгрыш завершён")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+    try {
+      const channel = await interaction.client.channels.fetch(giveaway.channelId);
+      if (channel && "messages" in channel) {
+        const msg = await (channel as { messages: { fetch: (id: string) => Promise<{ edit: (opts: unknown) => Promise<unknown> }> } }).messages.fetch(giveawayId);
+        await msg.edit({ components: [disabledRow] });
+      }
+    } catch {
+    }
+
+    await interaction.reply({ embeds: [e] });
+    giveaways.delete(giveawayId);
+  },
+};
