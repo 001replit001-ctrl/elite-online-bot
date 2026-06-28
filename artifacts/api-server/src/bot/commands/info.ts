@@ -4,12 +4,14 @@ import type { Command } from "../client.js";
 export const info: Command = {
   data: new SlashCommandBuilder()
     .setName("инфо")
-    .setDescription("Информация о пользователе или сервере")
+    .setDescription("Информация о пользователе")
     .addUserOption((opt) =>
       opt.setName("пользователь").setDescription("Пользователь (по умолчанию — ты)").setRequired(false)
     ),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const target = interaction.options.getUser("пользователь") ?? interaction.user;
     const member = interaction.guild?.members.cache.get(target.id);
 
@@ -31,6 +33,12 @@ export const info: Command = {
       );
     }
 
-    await interaction.reply({ embeds: [e] });
+    const channel = interaction.channel;
+    if (channel && "send" in channel) {
+      await (channel as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [e] });
+      await interaction.editReply("✅");
+    } else {
+      await interaction.editReply({ embeds: [e] });
+    }
   },
 };

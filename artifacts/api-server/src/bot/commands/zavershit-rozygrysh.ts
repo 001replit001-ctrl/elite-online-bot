@@ -19,6 +19,8 @@ export const zavershitRozygrysh: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const inputId = interaction.options.getString("id");
 
     let giveaway = inputId ? giveaways.get(inputId) : undefined;
@@ -35,12 +37,12 @@ export const zavershitRozygrysh: Command = {
     }
 
     if (!giveaway) {
-      await interaction.reply({ content: "❌ В этом канале нет активных розыгрышей.", flags: 64 });
+      await interaction.editReply("❌ В этом канале нет активных розыгрышей.");
       return;
     }
 
     if (giveaway.hostId !== interaction.user.id && !interaction.memberPermissions?.has("Administrator")) {
-      await interaction.reply({ content: "❌ Завершить розыгрыш может только организатор или администратор.", flags: 64 });
+      await interaction.editReply("❌ Завершить розыгрыш может только организатор или администратор.");
       return;
     }
 
@@ -49,13 +51,21 @@ export const zavershitRozygrysh: Command = {
     const participants = [...giveaway.participants];
     const winnersCount = (giveaway as { winnersCount?: number }).winnersCount ?? 1;
 
+    const channel = interaction.channel;
+    if (!channel || !("send" in channel)) {
+      await interaction.editReply("❌ Не могу отправить результат в канал.");
+      return;
+    }
+    const ch = channel as { send: (opts: unknown) => Promise<unknown> };
+
     if (participants.length === 0) {
       const e = new EmbedBuilder()
         .setTitle("🎉 Розыгрыш завершён")
         .setDescription(`**Приз:** ${giveaway.prize}\n\n😔 Никто не участвовал...`)
         .setColor(0xe74c3c)
         .setTimestamp();
-      await interaction.reply({ embeds: [e] });
+      await ch.send({ embeds: [e] });
+      await interaction.editReply("✅ Розыгрыш завершён.");
       giveaways.delete(giveawayId);
       return;
     }
@@ -82,15 +92,15 @@ export const zavershitRozygrysh: Command = {
     );
 
     try {
-      const channel = await interaction.client.channels.fetch(giveaway.channelId);
-      if (channel && "messages" in channel) {
-        const msg = await (channel as { messages: { fetch: (id: string) => Promise<{ edit: (opts: unknown) => Promise<unknown> }> } }).messages.fetch(giveawayId);
-        await msg.edit({ components: [disabledRow] });
+      const origChannel = await interaction.client.channels.fetch(giveaway.channelId);
+      if (origChannel && "messages" in origChannel) {
+        const origMsg = await (origChannel as { messages: { fetch: (id: string) => Promise<{ edit: (opts: unknown) => Promise<unknown> }> } }).messages.fetch(giveawayId);
+        await origMsg.edit({ components: [disabledRow] });
       }
-    } catch {
-    }
+    } catch { }
 
-    await interaction.reply({ embeds: [e] });
+    await ch.send({ embeds: [e] });
+    await interaction.editReply("✅ Розыгрыш завершён.");
     giveaways.delete(giveawayId);
   },
 };

@@ -10,6 +10,8 @@ export const avatar: Command = {
     ),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const target = interaction.options.getUser("пользователь") ?? interaction.user;
 
     const e = new EmbedBuilder()
@@ -18,6 +20,12 @@ export const avatar: Command = {
       .setColor(0x5865f2)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [e] });
+    const channel = interaction.channel;
+    if (channel && "send" in channel) {
+      await (channel as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [e] });
+      await interaction.editReply("✅");
+    } else {
+      await interaction.editReply({ embeds: [e] });
+    }
   },
 };

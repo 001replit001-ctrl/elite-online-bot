@@ -7,9 +7,11 @@ export const server: Command = {
     .setDescription("Информация о сервере"),
 
   async execute(interaction) {
+    await interaction.deferReply({ flags: 64 });
+
     const guild = interaction.guild;
     if (!guild) {
-      await interaction.reply({ content: "❌ Только для серверов.", flags: 64 });
+      await interaction.editReply("❌ Только для серверов.");
       return;
     }
 
@@ -33,6 +35,12 @@ export const server: Command = {
       .setColor(0x5865f2)
       .setTimestamp();
 
-    await interaction.reply({ embeds: [e] });
+    const channel = interaction.channel;
+    if (channel && "send" in channel) {
+      await (channel as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [e] });
+      await interaction.editReply("✅");
+    } else {
+      await interaction.editReply({ embeds: [e] });
+    }
   },
 };

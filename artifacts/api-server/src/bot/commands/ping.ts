@@ -7,8 +7,9 @@ export const ping: Command = {
     .setDescription("Проверить задержку бота"),
 
   async execute(interaction) {
-    const sent = await interaction.reply({ content: "⏳ Замеряю...", fetchReply: true });
-    const latency = sent.createdTimestamp - interaction.createdTimestamp;
+    await interaction.deferReply({ flags: 64 });
+
+    const latency = Date.now() - interaction.createdTimestamp;
     const ws = interaction.client.ws.ping;
 
     const e = new EmbedBuilder()
@@ -20,6 +21,12 @@ export const ping: Command = {
       .setColor(latency < 200 ? 0x2ecc71 : latency < 500 ? 0xf39c12 : 0xe74c3c)
       .setTimestamp();
 
-    await sent.edit({ content: "", embeds: [e] });
+    const channel = interaction.channel;
+    if (channel && "send" in channel) {
+      await (channel as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [e] });
+      await interaction.editReply("✅");
+    } else {
+      await interaction.editReply({ embeds: [e] });
+    }
   },
 };

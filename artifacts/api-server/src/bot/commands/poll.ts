@@ -5,6 +5,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   PermissionFlagsBits,
+  ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
 
@@ -30,6 +31,14 @@ export const poll: Command = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   async execute(interaction) {
+    const channel = interaction.channel;
+    if (!channel || channel.type === ChannelType.DM) {
+      await interaction.reply({ content: "❌ Только для серверных каналов.", flags: 64 });
+      return;
+    }
+
+    await interaction.deferReply({ flags: 64 });
+
     const question = interaction.options.getString("вопрос", true);
     const options = [
       interaction.options.getString("вариант1", true),
@@ -49,8 +58,8 @@ export const poll: Command = {
       const embed = new EmbedBuilder().setColor(0x3498db).setTimestamp()
         .setFooter({ text: `Опрос от ${interaction.user.username}` });
 
-      if (question.length <= 256) {
-        embed.setTitle(`📊 ${question.slice(0, 253)}`);
+      if (question.length <= 250) {
+        embed.setTitle(`📊 ${question}`);
         embed.setDescription(votes_desc);
       } else {
         embed.setTitle("📊 Опрос");
@@ -60,22 +69,32 @@ export const poll: Command = {
       return embed;
     };
 
-    const buildRow = () =>
+    const buildRow = (msgId: string) =>
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         ...options.map((opt, i) =>
           new ButtonBuilder()
-            .setCustomId(`poll_${interaction.id}_${i}`)
+            .setCustomId(`poll_${msgId}_${i}`)
             .setLabel(`${emojis[i]} ${opt}`)
             .setStyle(ButtonStyle.Primary)
         )
       );
 
-    const msg = await interaction.reply({ embeds: [buildEmbed()], components: [buildRow()], fetchReply: true });
+    const ch = channel as { send: (opts: unknown) => Promise<import("discord.js").Message> };
+    const msg = await ch.send({
+      embeds: [buildEmbed()],
+      components: [buildRow("placeholder")],
+      allowedMentions: { parse: ["roles", "users", "everyone"] },
+    });
+
+    // Пересобираем кнопки с реальным ID сообщения
+    await msg.edit({ components: [buildRow(msg.id)] });
+
+    await interaction.editReply("✅ Опрос создан!");
 
     const collector = msg.createMessageComponentCollector({ time: 24 * 60 * 60 * 1000 });
 
     collector.on("collect", async (btn) => {
-      if (!btn.customId.startsWith(`poll_${interaction.id}_`)) return;
+      if (!btn.customId.startsWith(`poll_${msg.id}_`)) return;
       const idx = btn.customId.split("_").pop()!;
 
       for (const [key, set] of votes) {
@@ -84,7 +103,7 @@ export const poll: Command = {
       }
       votes.get(idx)?.add(btn.user.id);
 
-      await btn.update({ embeds: [buildEmbed()], components: [buildRow()] });
+      await btn.update({ embeds: [buildEmbed()], components: [buildRow(msg.id)] });
     });
   },
 };
