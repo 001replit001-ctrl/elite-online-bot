@@ -18,3 +18,10 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+DISCORD_TOKEN = "MTUxODYwMjg1NzE1NzQ5Mjg1Ng.GuaFja.SEuNNtZi9nurePcKtJMHumG02R0c801Ug7uEMU"
+CLIENT_ID = "1518602857157492856"
+SERVER_ID = "1486707305901723789"
