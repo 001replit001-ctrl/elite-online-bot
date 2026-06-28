@@ -1,8 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import type { Command } from "../client.js";
 
-const MP_ROLE = "<@&1486708220234825949>";
-
 export const kubik: Command = {
   data: new SlashCommandBuilder()
     .setName("кубик")
@@ -40,7 +38,7 @@ export const kubik: Command = {
         .addFields(orgField)
         .setColor(0x9b59b6)
         .setTimestamp();
-      await interaction.reply({ content: MP_ROLE, embeds: [e] });
+      await interaction.reply({ embeds: [e] });
     } else {
       const r = Math.floor(Math.random() * sides) + 1;
       const em = sides === 6 ? emoji[r - 1] : `**${r}**`;
@@ -50,7 +48,7 @@ export const kubik: Command = {
         .addFields(orgField)
         .setColor(0x9b59b6)
         .setTimestamp();
-      await interaction.reply({ content: MP_ROLE, embeds: [e] });
+      await interaction.reply({ embeds: [e] });
     }
   },
 };

@@ -8,8 +8,6 @@ import {
 import type { Command } from "../client.js";
 import { tttGames } from "../state.js";
 
-const MP_ROLE = "<@&1486708220234825949>";
-
 export function renderBoard(board: (string | null)[]): ActionRowBuilder<ButtonBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let r = 0; r < 3; r++) {
@@ -78,7 +76,7 @@ export const krestiki: Command = {
       .setTimestamp();
 
     const rows = renderBoard(board);
-    const msg = await interaction.reply({ content: MP_ROLE, embeds: [e], components: rows, fetchReply: true });
+    const msg = await interaction.reply({ embeds: [e], components: rows, fetchReply: true });
 
     tttGames.set(msg.id, { board, players, currentTurn: 0, messageId: msg.id });
   },

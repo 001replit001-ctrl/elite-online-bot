@@ -81,7 +81,7 @@ async function deployCommands() {
 }
 
 const CROSS_KEYWORDS = ["cross", "крест", "wrong", "no", "close", "deny", "decline", "reject", "x_", "_x", "nope", "bad", "minus", "delete", "remove"];
-const CHECK_KEYWORDS = ["verify", "check", "correct", "yes", "ok", "tick", "done", "success", "approve", "accept", "right", "good", "plus"];
+const CHECK_KEYWORDS = ["red_check", "redcheck", "verify", "check", "correct", "yes", "ok", "tick", "done", "success", "approve", "accept", "right", "good", "plus"];
 
 function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): string {
   if (!guildId) return type === "cross" ? "❌" : "✅";

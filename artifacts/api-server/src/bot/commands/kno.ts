@@ -8,8 +8,6 @@ import {
 import type { Command } from "../client.js";
 import { knoGames } from "../state.js";
 
-const MP_ROLE = "<@&1486708220234825949>";
-
 export const kno: Command = {
   data: new SlashCommandBuilder()
     .setName("кно")
@@ -51,7 +49,7 @@ export const kno: Command = {
       .setColor(0x3498db)
       .setTimestamp();
 
-    const msg = await interaction.reply({ content: MP_ROLE, embeds: [e], components: [row], fetchReply: true });
+    const msg = await interaction.reply({ embeds: [e], components: [row], fetchReply: true });
 
     knoGames.set(msg.id, {
       hostId: interaction.user.id,

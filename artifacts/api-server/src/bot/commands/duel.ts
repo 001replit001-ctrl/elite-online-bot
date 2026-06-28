@@ -8,8 +8,6 @@ import {
 import type { Command } from "../client.js";
 import { duelRequests } from "../state.js";
 
-const MP_ROLE = "<@&1486708220234825949>";
-
 const weapons = ["⚔️ Меч", "🏹 Лук", "🔱 Трезубец", "🪓 Топор", "🗡️ Кинжал"];
 const actions = [
   "прорвался сквозь защиту",
@@ -74,7 +72,7 @@ export const duel: Command = {
 
     const msg = await (ch as {
       send: (opts: unknown) => Promise<{ id: string; edit: (opts: unknown) => Promise<unknown> }>;
-    }).send({ content: MP_ROLE, embeds: [e], components: [row] });
+    }).send({ embeds: [e], components: [row] });
 
     duelRequests.set(msg.id, { hostId: interaction.user.id, targetId: target.id, prize });
 
