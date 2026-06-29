@@ -36,6 +36,7 @@ import { ticketAdd } from "./commands/ticket-add.js";
 import { ticketRemove } from "./commands/ticket-remove.js";
 import { vydatDostup } from "./commands/vydat-dostup.js";
 import { zabratDostup } from "./commands/zabrat-dostup.js";
+import { spisokDostupa } from "./commands/spisok-dostupa.js";
 import {
   type TicketData,
   ticketSetups,
@@ -75,7 +76,7 @@ const allCommands = [
   monetka, kubik, kno, duel, krestiki,
   info, server, poll, avatar, ping,
   ticketPanel, ticketAdd, ticketRemove,
-  vydatDostup, zabratDostup,
+  vydatDostup, zabratDostup, spisokDostupa,
 ];
 
 for (const cmd of allCommands) {
@@ -423,7 +424,7 @@ const MOD_COMMANDS = new Set([
   "розыгрыш", "завершить-розыгрыш", "стоп-игра",
   "рассылка", "say", "embed", "ссылка", "опрос",
   "тикет-панель", "тикет-добавить", "тикет-убрать",
-  "выдать-доступ", "забрать-доступ",
+  "выдать-доступ", "забрать-доступ", "список-доступа",
 ]);
 
 // ── Slash команды ──
