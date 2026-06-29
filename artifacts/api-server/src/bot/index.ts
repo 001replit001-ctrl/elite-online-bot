@@ -382,7 +382,7 @@ client.on(Events.MessageCreate, async (message) => {
         try {
           const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
           await boardMsg.edit(
-            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ❌ Промахов: **${missCount}**`
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`
           );
         } catch { /* сообщение могло быть удалено */ }
 
@@ -397,7 +397,7 @@ client.on(Events.MessageCreate, async (message) => {
         try {
           const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
           await boardMsg.edit(
-            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ❌ Промахов: **${missCount}**`
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`
           );
         } catch { /* сообщение могло быть удалено */ }
       }
