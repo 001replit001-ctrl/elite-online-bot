@@ -379,6 +379,10 @@ client.on(Events.MessageCreate, async (message) => {
         const revealedCount = game.revealed.filter(Boolean).length;
         const missCount = [...game.guessedLetters].filter((l) => !game.word.includes(l)).length;
 
+        await message.channel.send(
+          `${rightEmoji} <@${message.author.id}> угадал букву **${input.toUpperCase()}**!`
+        );
+
         try {
           const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
           await boardMsg.edit(
@@ -389,6 +393,10 @@ client.on(Events.MessageCreate, async (message) => {
       } else {
         // Буквы нет в слове
         try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+
+        await message.channel.send(
+          `${wrongEmoji} Буквы **${input.toUpperCase()}** в слове нет!`
+        );
 
         const board = buildBoard(game.word, game.revealed);
         const revealedCount = game.revealed.filter(Boolean).length;
