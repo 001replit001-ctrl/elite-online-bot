@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
 } from "discord.js";
 import type { Command } from "../client.js";
 
@@ -32,8 +31,7 @@ export const ssylka: Command = {
     )
     .addChannelOption((opt) =>
       opt.setName("канал").setDescription("Куда отправить").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

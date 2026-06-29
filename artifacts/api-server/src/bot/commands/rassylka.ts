@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import type { Command } from "../client.js";
 
 export const rassylka: Command = {
@@ -13,8 +13,7 @@ export const rassylka: Command = {
     )
     .addStringOption((opt) =>
       opt.setName("цвет").setDescription("Цвет embed HEX (по умолчанию #5865F2)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

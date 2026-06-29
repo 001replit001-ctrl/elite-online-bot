@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
@@ -27,8 +26,7 @@ export const poll: Command = {
     )
     .addStringOption((opt) =>
       opt.setName("вариант4").setDescription("Вариант 4").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     const channel = interaction.channel;

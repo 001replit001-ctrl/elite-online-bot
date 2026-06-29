@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
 } from "discord.js";
 import type { Command } from "../client.js";
 import { giveaways } from "../state.js";
@@ -15,8 +14,7 @@ export const zavershitRozygrysh: Command = {
     .setDescription("Завершить розыгрыш и выбрать победителя")
     .addStringOption((opt) =>
       opt.setName("id").setDescription("ID сообщения розыгрыша (если несколько активных)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

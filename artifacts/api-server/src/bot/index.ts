@@ -34,6 +34,8 @@ import { resolveDuel } from "./commands/duel.js";
 import { ticketPanel } from "./commands/ticket-panel.js";
 import { ticketAdd } from "./commands/ticket-add.js";
 import { ticketRemove } from "./commands/ticket-remove.js";
+import { vydatDostup } from "./commands/vydat-dostup.js";
+import { zabratDostup } from "./commands/zabrat-dostup.js";
 import {
   type TicketData,
   ticketSetups,
@@ -42,6 +44,7 @@ import {
   loadTicketState,
   saveTicketState,
 } from "./ticket-state.js";
+import { hasModAccess, loadAccessState } from "./access-state.js";
 
 import { say } from "./commands/say.js";
 import { embed } from "./commands/embed.js";
@@ -72,6 +75,7 @@ const allCommands = [
   monetka, kubik, kno, duel, krestiki,
   info, server, poll, avatar, ping,
   ticketPanel, ticketAdd, ticketRemove,
+  vydatDostup, zabratDostup,
 ];
 
 for (const cmd of allCommands) {
@@ -414,11 +418,29 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+const MOD_COMMANDS = new Set([
+  "угадай-число", "угадай-машину", "угадай-слово",
+  "розыгрыш", "завершить-розыгрыш", "стоп-игра",
+  "рассылка", "say", "embed", "ссылка", "опрос",
+  "тикет-панель", "тикет-добавить", "тикет-убрать",
+  "выдать-доступ", "забрать-доступ",
+]);
+
 // ── Slash команды ──
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isChatInputCommand()) {
     const command = commands.get(interaction.commandName);
     if (!command) return;
+
+    if (MOD_COMMANDS.has(interaction.commandName) && !hasModAccess(interaction.user.id)) {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply("❌ У тебя нет доступа к этой команде.");
+      } else {
+        await interaction.reply({ content: "❌ У тебя нет доступа к этой команде.", flags: 64 });
+      }
+      return;
+    }
+
     try {
       await command.execute(interaction);
     } catch (err) {
@@ -732,7 +754,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     saveTicketState();
 
     await interaction.update({ embeds: [buildTicketEmbed(ticket, "claimed")], components: [buildTicketButtons(true)] });
-    await interaction.followUp({ content: `👷 Тикет взял <@${interaction.user.id}>. Скоро с вами свяжутся!`, flags: 0 });
+    await interaction.followUp({ content: `👷 Тикет взял <@${interaction.user.id}>. Скоро с вами свяжутся!` });
     return;
   }
 
@@ -832,6 +854,8 @@ export async function startBot() {
     logger.error("DISCORD_BOT_TOKEN не задан — бот не запущен");
     return;
   }
+
+  loadAccessState();
 
   // Keep-alive: пинг себя каждые 4 минуты чтобы не отключаться
   const port = process.env["PORT"] ?? "8080";

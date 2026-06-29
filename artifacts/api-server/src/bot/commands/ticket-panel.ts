@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
@@ -26,8 +25,7 @@ export const ticketPanel: Command = {
         .setName("роль-staff")
         .setDescription("Роль сотрудников поддержки (видят все тикеты)")
         .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

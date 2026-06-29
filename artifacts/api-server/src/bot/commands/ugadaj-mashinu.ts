@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
@@ -22,8 +21,7 @@ export const ugadajMashinu: Command = {
     )
     .addUserOption((opt) =>
       opt.setName("организатор").setDescription("Тег организатора").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     const channel = interaction.channel;

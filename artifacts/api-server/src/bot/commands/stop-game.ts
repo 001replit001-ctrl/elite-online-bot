@@ -1,12 +1,11 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, ChannelType } from "discord.js";
 import type { Command } from "../client.js";
 import { numberGames, carGames, wordGames, threadToNumberGame, threadToCarGame, threadToWordGame } from "../state.js";
 
 export const stopGame: Command = {
   data: new SlashCommandBuilder()
     .setName("стоп-игра")
-    .setDescription("Остановить текущую игру в этом канале/ветке")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    .setDescription("Остановить текущую игру в этом канале/ветке"),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

@@ -4,7 +4,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  PermissionFlagsBits,
   ChannelType,
 } from "discord.js";
 import type { Command } from "../client.js";
@@ -30,8 +29,7 @@ export const rozygrysh: Command = {
         .setRequired(false)
         .setMinValue(1)
         .setMaxValue(10)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     const channel = interaction.channel;

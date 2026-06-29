@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import type { Command } from "../client.js";
 
 export const embed: Command = {
@@ -22,8 +22,7 @@ export const embed: Command = {
     )
     .addChannelOption((opt) =>
       opt.setName("канал").setDescription("Куда отправить (по умолчанию текущий)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

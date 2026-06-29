@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import { SlashCommandBuilder } from "discord.js";
 import type { Command } from "../client.js";
 
 export const say: Command = {
@@ -10,8 +10,7 @@ export const say: Command = {
     )
     .addChannelOption((opt) =>
       opt.setName("канал").setDescription("Канал для отправки (по умолчанию — текущий)").setRequired(false)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });

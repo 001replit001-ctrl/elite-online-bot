@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { SlashCommandBuilder, ChannelType } from "discord.js";
 import type { Command } from "../client.js";
 import { openTickets } from "../ticket-state.js";
 
@@ -8,8 +8,7 @@ export const ticketRemove: Command = {
     .setDescription("Убрать пользователя из текущего тикета")
     .addUserOption((opt) =>
       opt.setName("пользователь").setDescription("Кого убрать").setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    ),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: 64 });
