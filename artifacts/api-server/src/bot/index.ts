@@ -50,6 +50,11 @@ import { hasModAccess, loadAccessState } from "./access-state.js";
 import { say } from "./commands/say.js";
 import { embed } from "./commands/embed.js";
 import { ssylka } from "./commands/ssylka.js";
+import { setAdmin } from "./commands/setAdmin.js";
+import { removeadmin } from "./commands/removeAdmin.js";
+import { giveRole } from "./commands/giveRole.js";
+import { profile } from "./commands/profile.js";
+import { verify } from "./commands/verify.js";
 import { ugadajChislo } from "./commands/ugadaj-chislo.js";
 import { ugadajMashinu } from "./commands/ugadaj-mashinu.js";
 import { ugadajSlovo, buildBoard } from "./commands/ugadaj-slovo.js";
@@ -70,13 +75,38 @@ import { avatar } from "./commands/avatar.js";
 import { ping } from "./commands/ping.js";
 
 const allCommands = [
-  say, embed, ssylka,
-  ugadajChislo, ugadajMashinu, ugadajSlovo, ugadat, stopGame,
-  rassylka, rozygrysh, zavershitRozygrysh,
-  monetka, kubik, kno, duel, krestiki,
-  info, server, poll, avatar, ping,
-  ticketPanel, ticketAdd, ticketRemove,
-  vydatDostup, zabratDostup, spisokDostupa,
+  say,
+  embed,
+  ssylka,
+  ugadajChislo,
+  ugadajMashinu,
+  ugadajSlovo,
+  ugadat,
+  stopGame,
+  rassylka,
+  rozygrysh,
+  zavershitRozygrysh,
+  monetka,
+  kubik,
+  kno,
+  duel,
+  krestiki,
+  info,
+  server,
+  poll,
+  avatar,
+  ping,
+  ticketPanel,
+  ticketAdd,
+  ticketRemove,
+  vydatDostup,
+  zabratDostup,
+  spisokDostupa,
+  setAdmin,
+  removeadmin,
+  giveRole,
+  profile,
+  verify,
 ];
 
 for (const cmd of allCommands) {
@@ -93,13 +123,18 @@ async function deployCommands() {
     return;
   }
 
-  const guildIds = guildIdRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  const guildIds = guildIdRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const rest = new REST().setToken(token);
   const body = allCommands.map((c) => c.data.toJSON());
 
   for (const guildId of guildIds) {
     try {
-      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body,
+      });
       logger.info({ guildId }, "✅ Команды зарегистрированы");
     } catch (err) {
       logger.error({ err, guildId }, "❌ Ошибка регистрации команд");
@@ -107,10 +142,45 @@ async function deployCommands() {
   }
 }
 
-const CROSS_KEYWORDS = ["x_mark", "xmark", "cross", "крест", "wrong", "no", "close", "deny", "decline", "reject", "nope", "bad", "minus", "delete", "remove"];
-const CHECK_KEYWORDS = ["red_check", "redcheck", "verify", "check", "correct", "yes", "ok", "tick", "done", "success", "approve", "accept", "right", "good", "plus"];
+const CROSS_KEYWORDS = [
+  "x_mark",
+  "xmark",
+  "cross",
+  "крест",
+  "wrong",
+  "no",
+  "close",
+  "deny",
+  "decline",
+  "reject",
+  "nope",
+  "bad",
+  "minus",
+  "delete",
+  "remove",
+];
+const CHECK_KEYWORDS = [
+  "red_check",
+  "redcheck",
+  "verify",
+  "check",
+  "correct",
+  "yes",
+  "ok",
+  "tick",
+  "done",
+  "success",
+  "approve",
+  "accept",
+  "right",
+  "good",
+  "plus",
+];
 
-function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): string {
+function findAnimatedEmoji(
+  guildId: string | null,
+  type: "cross" | "check",
+): string {
   if (!guildId) return type === "cross" ? "❌" : "✅";
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return type === "cross" ? "❌" : "✅";
@@ -119,17 +189,21 @@ function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): str
 
   // 1. Animated emoji matching keywords
   const animated = guild.emojis.cache.find(
-    (e) => e.animated === true && keywords.some((k) => e.name?.toLowerCase().includes(k))
+    (e) =>
+      e.animated === true &&
+      keywords.some((k) => e.name?.toLowerCase().includes(k)),
   );
   if (animated) return `<a:${animated.name}:${animated.id}>`;
 
   // 2. Any animated emoji as last resort
   const anyAnimated = guild.emojis.cache.find((e) => e.animated === true);
-  if (anyAnimated && type === "cross") return `<a:${anyAnimated.name}:${anyAnimated.id}>`;
+  if (anyAnimated && type === "cross")
+    return `<a:${anyAnimated.name}:${anyAnimated.id}>`;
 
   // 3. Static emoji matching keywords
   const staticEmoji = guild.emojis.cache.find(
-    (e) => !e.animated && keywords.some((k) => e.name?.toLowerCase().includes(k))
+    (e) =>
+      !e.animated && keywords.some((k) => e.name?.toLowerCase().includes(k)),
   );
   if (staticEmoji) return `<:${staticEmoji.name}:${staticEmoji.id}>`;
 
@@ -138,25 +212,33 @@ function findAnimatedEmoji(guildId: string | null, type: "cross" | "check"): str
 
 // ── Ticket helpers ──
 
-function buildTicketEmbed(ticket: TicketData, status: "open" | "claimed"): EmbedBuilder {
+function buildTicketEmbed(
+  ticket: TicketData,
+  status: "open" | "claimed",
+): EmbedBuilder {
   const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
   const color = status === "claimed" ? 0xf1c40f : 0x5865f2;
   return new EmbedBuilder()
     .setTitle(`🎫 Тикет #${paddedNum}`)
     .setDescription(
       `**📋 Тема:**\n${ticket.subject}\n\n` +
-      `**📝 Описание:**\n${ticket.description}`
+        `**📝 Описание:**\n${ticket.description}`,
     )
     .addFields(
       { name: "👤 Автор", value: `<@${ticket.userId}>`, inline: true },
-      { name: "📅 Создан", value: `<t:${Math.floor(ticket.createdAt / 1000)}:R>`, inline: true },
+      {
+        name: "📅 Создан",
+        value: `<t:${Math.floor(ticket.createdAt / 1000)}:R>`,
+        inline: true,
+      },
       {
         name: "📊 Статус",
-        value: status === "claimed"
-          ? `🟡 В работе · <@${ticket.claimedBy}>`
-          : "🔵 Ожидает ответа",
+        value:
+          status === "claimed"
+            ? `🟡 В работе · <@${ticket.claimedBy}>`
+            : "🔵 Ожидает ответа",
         inline: false,
-      }
+      },
     )
     .setColor(color)
     .setFooter({ text: `ELITE ONLINE • Система тикетов · #${paddedNum}` })
@@ -177,7 +259,10 @@ function buildTicketButtons(claimed: boolean): ActionRowBuilder<ButtonBuilder> {
   );
 }
 
-async function generateTranscript(channel: TextChannel, ticket: TicketData): Promise<string> {
+async function generateTranscript(
+  channel: TextChannel,
+  ticket: TicketData,
+): Promise<string> {
   const allMessages: Message[] = [];
   let lastId: string | undefined;
 
@@ -192,7 +277,7 @@ async function generateTranscript(channel: TextChannel, ticket: TicketData): Pro
       allMessages.unshift(...[...arr].reverse());
       if (fetched.size < 100) break;
     }
-  } catch { }
+  } catch {}
 
   const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
   const fmt = (ts: number) =>
@@ -206,20 +291,27 @@ async function generateTranscript(channel: TextChannel, ticket: TicketData): Pro
     `  Описание:   ${ticket.description}`,
     `  Автор:      ${ticket.userId}`,
     `  Создан:     ${fmt(ticket.createdAt)}`,
-    ticket.claimedBy ? `  Взял:       ${ticket.claimedByName ?? ticket.claimedBy}` : "",
+    ticket.claimedBy
+      ? `  Взял:       ${ticket.claimedByName ?? ticket.claimedBy}`
+      : "",
     `  Закрыт:     ${fmt(Date.now())}`,
     "═══════════════════════════════════════════════",
     "",
   ].filter(Boolean);
 
-  const lines = allMessages.map((msg) => {
-    const time = fmt(msg.createdTimestamp);
-    const tag = msg.author.bot ? "[БОТ]" : "     ";
-    let content = msg.content || "";
-    if (msg.attachments.size > 0) content += ` [${msg.attachments.size} вложение(й)]`;
-    if (!content && msg.embeds.length > 0) content = "[embed]";
-    return content ? `${tag} [${time}] ${msg.author.username}: ${content}` : null;
-  }).filter(Boolean) as string[];
+  const lines = allMessages
+    .map((msg) => {
+      const time = fmt(msg.createdTimestamp);
+      const tag = msg.author.bot ? "[БОТ]" : "     ";
+      let content = msg.content || "";
+      if (msg.attachments.size > 0)
+        content += ` [${msg.attachments.size} вложение(й)]`;
+      if (!content && msg.embeds.length > 0) content = "[embed]";
+      return content
+        ? `${tag} [${time}] ${msg.author.username}: ${content}`
+        : null;
+    })
+    .filter(Boolean) as string[];
 
   const footer = [
     "",
@@ -233,13 +325,44 @@ async function generateTranscript(channel: TextChannel, ticket: TicketData): Pro
 
 client.once(Events.ClientReady, async (c) => {
   logger.info(`🤖 Бот запущен как ${c.user.tag}`);
+
   await deployCommands();
+
+  const statuses = [
+    "🎮 Играет в Elite Online",
+    "🌆 Мир Elite Online",
+    "🚗 Elite Online RP",
+  ];
+
+  let index = 0;
+
+  c.user.setActivity(statuses[index], {
+    type: 0,
+  });
+
+  setInterval(() => {
+    index++;
+
+    if (index >= statuses.length) {
+      index = 0;
+    }
+
+    c.user.setActivity(statuses[index], {
+      type: 0,
+    });
+
+    logger.info(`🔄 Статус изменён: ${statuses[index]}`);
+  }, 10000);
 });
 
 // ── MessageCreate: обработка ответов в ветках ──
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
-  if (message.channel.type !== ChannelType.PublicThread && message.channel.type !== ChannelType.PrivateThread) return;
+  if (
+    message.channel.type !== ChannelType.PublicThread &&
+    message.channel.type !== ChannelType.PrivateThread
+  )
+    return;
 
   const threadId = message.channel.id;
   const guildId = message.guildId;
@@ -256,13 +379,17 @@ client.on(Events.MessageCreate, async (message) => {
     const rightEmoji = findAnimatedEmoji(guildId, "check");
 
     if (guess === game.number) {
-      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+      try {
+        await message.react(rightEmoji);
+      } catch {
+        await message.react("✅").catch(() => {});
+      }
 
       numberGames.delete(threadId);
       threadToNumberGame.delete(threadId);
 
       await message.channel.send(
-        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔢 **Загаданное число:** ${game.number}`
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔢 **Загаданное число:** ${game.number}`,
       );
 
       await new Promise((r) => setTimeout(r, 2000));
@@ -273,7 +400,11 @@ client.on(Events.MessageCreate, async (message) => {
         logger.warn({ threadId }, "Не удалось закрыть ветку");
       }
     } else {
-      try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+      try {
+        await message.react(wrongEmoji);
+      } catch {
+        await message.react("❌").catch(() => {});
+      }
     }
     return;
   }
@@ -288,13 +419,17 @@ client.on(Events.MessageCreate, async (message) => {
 
     const guess = message.content.trim().toLowerCase();
     if (guess === game.car) {
-      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+      try {
+        await message.react(rightEmoji);
+      } catch {
+        await message.react("✅").catch(() => {});
+      }
 
       carGames.delete(threadId);
       threadToCarGame.delete(threadId);
 
       await message.channel.send(
-        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🚗 **Машина была:** ${game.car}`
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🚗 **Машина была:** ${game.car}`,
       );
 
       await new Promise((r) => setTimeout(r, 2000));
@@ -305,7 +440,11 @@ client.on(Events.MessageCreate, async (message) => {
         logger.warn({ threadId }, "Не удалось закрыть ветку");
       }
     } else {
-      try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+      try {
+        await message.react(wrongEmoji);
+      } catch {
+        await message.react("❌").catch(() => {});
+      }
     }
     return;
   }
@@ -322,13 +461,17 @@ client.on(Events.MessageCreate, async (message) => {
 
     // Угадывание слова целиком
     if (input === game.word) {
-      try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+      try {
+        await message.react(rightEmoji);
+      } catch {
+        await message.react("✅").catch(() => {});
+      }
 
       wordGames.delete(threadId);
       threadToWordGame.delete(threadId);
 
       await message.channel.send(
-        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`
+        `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`,
       );
 
       await new Promise((r) => setTimeout(r, 2000));
@@ -352,7 +495,11 @@ client.on(Events.MessageCreate, async (message) => {
 
       if (game.word.includes(input)) {
         // Буква есть в слове
-        try { await message.react(rightEmoji); } catch { await message.react("✅").catch(() => {}); }
+        try {
+          await message.react(rightEmoji);
+        } catch {
+          await message.react("✅").catch(() => {});
+        }
 
         for (let i = 0; i < game.word.length; i++) {
           if (game.word[i] === input) game.revealed[i] = true;
@@ -366,7 +513,7 @@ client.on(Events.MessageCreate, async (message) => {
           threadToWordGame.delete(threadId);
 
           await message.channel.send(
-            `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`
+            `## Стоп! Победитель мероприятия - <@${message.author.id}>\n\n🎁 **Приз:** ${game.prize}\n🔤 **Слово было:** ${game.word.toUpperCase()}`,
           );
 
           await new Promise((r) => setTimeout(r, 2000));
@@ -382,37 +529,52 @@ client.on(Events.MessageCreate, async (message) => {
         // Обновляем доску
         const board = buildBoard(game.word, game.revealed);
         const revealedCount = game.revealed.filter(Boolean).length;
-        const missCount = [...game.guessedLetters].filter((l) => !game.word.includes(l)).length;
+        const missCount = [...game.guessedLetters].filter(
+          (l) => !game.word.includes(l),
+        ).length;
 
         await message.channel.send(
-          `${rightEmoji} <@${message.author.id}> угадал букву **${input.toUpperCase()}**!`
+          `${rightEmoji} <@${message.author.id}> угадал букву **${input.toUpperCase()}**!`,
         );
 
         try {
-          const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
-          await boardMsg.edit(
-            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`
+          const boardMsg = await message.channel.messages.fetch(
+            game.boardMessageId,
           );
-        } catch { /* сообщение могло быть удалено */ }
-
+          await boardMsg.edit(
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`,
+          );
+        } catch {
+          /* сообщение могло быть удалено */
+        }
       } else {
         // Буквы нет в слове
-        try { await message.react(wrongEmoji); } catch { await message.react("❌").catch(() => {}); }
+        try {
+          await message.react(wrongEmoji);
+        } catch {
+          await message.react("❌").catch(() => {});
+        }
 
         await message.channel.send(
-          `${wrongEmoji} Буквы **${input.toUpperCase()}** в слове нет!`
+          `${wrongEmoji} Буквы **${input.toUpperCase()}** в слове нет!`,
         );
 
         const board = buildBoard(game.word, game.revealed);
         const revealedCount = game.revealed.filter(Boolean).length;
-        const missCount = [...game.guessedLetters].filter((l) => !game.word.includes(l)).length;
+        const missCount = [...game.guessedLetters].filter(
+          (l) => !game.word.includes(l),
+        ).length;
 
         try {
-          const boardMsg = await message.channel.messages.fetch(game.boardMessageId);
-          await boardMsg.edit(
-            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`
+          const boardMsg = await message.channel.messages.fetch(
+            game.boardMessageId,
           );
-        } catch { /* сообщение могло быть удалено */ }
+          await boardMsg.edit(
+            `## ${board}\n\n🔡 Угадано букв: **${revealedCount} / ${game.word.length}** | ${wrongEmoji} Промахов: **${missCount}**`,
+          );
+        } catch {
+          /* сообщение могло быть удалено */
+        }
       }
     }
     return;
@@ -420,11 +582,23 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 const MOD_COMMANDS = new Set([
-  "угадай-число", "угадай-машину", "угадай-слово",
-  "розыгрыш", "завершить-розыгрыш", "стоп-игра",
-  "рассылка", "say", "embed", "ссылка", "опрос",
-  "тикет-панель", "тикет-добавить", "тикет-убрать",
-  "выдать-доступ", "забрать-доступ", "список-доступа",
+  "угадай-число",
+  "угадай-машину",
+  "угадай-слово",
+  "розыгрыш",
+  "завершить-розыгрыш",
+  "стоп-игра",
+  "рассылка",
+  "say",
+  "embed",
+  "ссылка",
+  "опрос",
+  "тикет-панель",
+  "тикет-добавить",
+  "тикет-убрать",
+  "выдать-доступ",
+  "забрать-доступ",
+  "список-доступа",
 ]);
 
 // ── Slash команды ──
@@ -433,11 +607,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const command = commands.get(interaction.commandName);
     if (!command) return;
 
-    if (MOD_COMMANDS.has(interaction.commandName) && !hasModAccess(interaction.user.id)) {
+    if (
+      MOD_COMMANDS.has(interaction.commandName) &&
+      !hasModAccess(interaction.user.id)
+    ) {
       if (interaction.replied || interaction.deferred) {
         await interaction.editReply("❌ У тебя нет доступа к этой команде.");
       } else {
-        await interaction.reply({ content: "❌ У тебя нет доступа к этой команде.", flags: 64 });
+        await interaction.reply({
+          content: "❌ У тебя нет доступа к этой команде.",
+          flags: 64,
+        });
       }
       return;
     }
@@ -445,7 +625,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       await command.execute(interaction);
     } catch (err) {
-      logger.error({ err, cmd: interaction.commandName }, "Ошибка выполнения команды");
+      logger.error(
+        { err, cmd: interaction.commandName },
+        "Ошибка выполнения команды",
+      );
       const msg = { content: "❌ Произошла ошибка.", flags: 64 as const };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(msg).catch(() => {});
@@ -462,20 +645,36 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await interaction.deferReply({ flags: 64 });
 
     const guildId = interaction.guildId;
-    if (!guildId) { await interaction.editReply("❌ Только для серверов."); return; }
+    if (!guildId) {
+      await interaction.editReply("❌ Только для серверов.");
+      return;
+    }
 
     const setup = ticketSetups.get(guildId);
-    if (!setup) { await interaction.editReply("❌ Система тикетов не настроена. Используйте /тикет-панель."); return; }
+    if (!setup) {
+      await interaction.editReply(
+        "❌ Система тикетов не настроена. Используйте /тикет-панель.",
+      );
+      return;
+    }
 
     const subject = interaction.fields.getTextInputValue("ticket_subject");
-    const description = interaction.fields.getTextInputValue("ticket_description");
+    const description =
+      interaction.fields.getTextInputValue("ticket_description");
     const ticketNum = nextTicketNumber(guildId);
     const paddedNum = String(ticketNum).padStart(4, "0");
 
     const guild = interaction.guild;
-    if (!guild) { await interaction.editReply("❌ Сервер не найден."); return; }
+    if (!guild) {
+      await interaction.editReply("❌ Сервер не найден.");
+      return;
+    }
 
-    const safeUsername = interaction.user.username.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 20) || "user";
+    const safeUsername =
+      interaction.user.username
+        .replace(/[^a-z0-9]/gi, "")
+        .toLowerCase()
+        .slice(0, 20) || "user";
 
     let ticketChannel;
     try {
@@ -484,24 +683,46 @@ client.on(Events.InteractionCreate, async (interaction) => {
         type: ChannelType.GuildText,
         topic: `🎫 Тикет #${paddedNum} | Автор: ${interaction.user.tag} | Тема: ${subject}`,
         permissionOverwrites: [
-          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+          {
+            id: guild.roles.everyone.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
           {
             id: interaction.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles],
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles,
+            ],
           },
           {
             id: setup.staffRoleId,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.AttachFiles],
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.ManageMessages,
+              PermissionFlagsBits.AttachFiles,
+            ],
           },
           {
             id: interaction.client.user.id,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages],
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.ManageChannels,
+              PermissionFlagsBits.ManageMessages,
+            ],
           },
         ],
       });
     } catch (err) {
       logger.error({ err }, "Не удалось создать тикет-канал");
-      await interaction.editReply("❌ Не удалось создать канал. Проверь права бота (Manage Channels).");
+      await interaction.editReply(
+        "❌ Не удалось создать канал. Проверь права бота (Manage Channels).",
+      );
       return;
     }
 
@@ -521,7 +742,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       content: `<@${interaction.user.id}> <@&${setup.staffRoleId}>\n\n👋 Добро пожаловать в ваш тикет! Опишите проблему подробнее, если нужно, и дождитесь ответа сотрудника.`,
       embeds: [buildTicketEmbed(ticketData, "open")],
       components: [buildTicketButtons(false)],
-      allowedMentions: { users: [interaction.user.id], roles: [setup.staffRoleId] },
+      allowedMentions: {
+        users: [interaction.user.id],
+        roles: [setup.staffRoleId],
+      },
     });
 
     await interaction.editReply(`✅ Тикет создан! → <#${ticketChannel.id}>`);
@@ -535,8 +759,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (customId === "giveaway_join" || customId === "giveaway_leave") {
     const msgId = interaction.message.id;
     const giveaway = giveaways.get(msgId);
-    if (!giveaway || giveaway.ended) {
-      await interaction.reply({ content: "❌ Этот розыгрыш уже завершён.", flags: 64 });
+    if (
+  !giveaway ||
+  giveaway.ended ||
+  Date.now() >= giveaway.endTime
+) {
+      await interaction.reply({
+        content: "❌ Этот розыгрыш уже завершён.",
+        flags: 64,
+      });
       return;
     }
 
@@ -545,7 +776,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (customId === "giveaway_join") {
       if (giveaway.participants.has(userId)) {
-        await interaction.reply({ content: "✅ Ты уже участвуешь!", flags: 64 });
+        await interaction.reply({
+          content: "✅ Ты уже участвуешь!",
+          flags: 64,
+        });
         return;
       }
       giveaway.participants.add(userId);
@@ -559,8 +793,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reply = "👋 Ты вышел из розыгрыша.";
     }
 
-    const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
-      .spliceFields(2, 1, { name: "👥 Участников", value: `${giveaway.participants.size}`, inline: true });
+    const updatedEmbed = EmbedBuilder.from(
+      interaction.message.embeds[0],
+    ).spliceFields(2, 1, {
+      name: "👥 Участников",
+      value: `${giveaway.participants.size}`,
+      inline: true,
+    });
 
     await interaction.update({ embeds: [updatedEmbed] });
     await interaction.followUp({ content: reply, flags: 64 });
@@ -573,44 +812,72 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const game = knoGames.get(msgId);
 
-    if (!game) { await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 }); return; }
+    if (!game) {
+      await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 });
+      return;
+    }
 
     const userId = interaction.user.id;
     if (userId !== game.hostId && userId !== game.targetId) {
-      await interaction.reply({ content: "❌ Ты не участник этой игры!", flags: 64 });
+      await interaction.reply({
+        content: "❌ Ты не участник этой игры!",
+        flags: 64,
+      });
       return;
     }
 
     if (userId === game.hostId) {
-      if (game.hostChoice) { await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 }); return; }
+      if (game.hostChoice) {
+        await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 });
+        return;
+      }
       game.hostChoice = choice;
     } else {
-      if (game.targetChoice) { await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 }); return; }
+      if (game.targetChoice) {
+        await interaction.reply({ content: "✅ Ты уже выбрал!", flags: 64 });
+        return;
+      }
       game.targetChoice = choice;
     }
 
     if (!game.hostChoice || !game.targetChoice) {
-      await interaction.reply({ content: "✅ Выбор принят! Ждём второго игрока...", flags: 64 });
+      await interaction.reply({
+        content: "✅ Выбор принят! Ждём второго игрока...",
+        flags: 64,
+      });
       return;
     }
 
     knoGames.delete(msgId);
-    const beats: Record<string, string> = { камень: "ножницы", ножницы: "бумага", бумага: "камень" };
-    const emojiMap: Record<string, string> = { камень: "🪨", ножницы: "✂️", бумага: "📄" };
+    const beats: Record<string, string> = {
+      камень: "ножницы",
+      ножницы: "бумага",
+      бумага: "камень",
+    };
+    const emojiMap: Record<string, string> = {
+      камень: "🪨",
+      ножницы: "✂️",
+      бумага: "📄",
+    };
 
     let result: string;
     if (game.hostChoice === game.targetChoice) result = "🤝 Ничья!";
-    else if (beats[game.hostChoice] === game.targetChoice) result = `🏆 Победил <@${game.hostId}>!`;
+    else if (beats[game.hostChoice] === game.targetChoice)
+      result = `🏆 Победил <@${game.hostId}>!`;
     else result = `🏆 Победил <@${game.targetId}>!`;
 
     const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId("kno_done").setLabel("Игра окончена").setStyle(ButtonStyle.Secondary).setDisabled(true)
+      new ButtonBuilder()
+        .setCustomId("kno_done")
+        .setLabel("Игра окончена")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
     );
 
     const e = new EmbedBuilder()
       .setTitle("✂️ Камень-Ножницы-Бумага — Результат")
       .setDescription(
-        `<@${game.hostId}>: ${emojiMap[game.hostChoice]} **${game.hostChoice}**\n<@${game.targetId}>: ${emojiMap[game.targetChoice]} **${game.targetChoice}**\n\n${result}`
+        `<@${game.hostId}>: ${emojiMap[game.hostChoice]} **${game.hostChoice}**\n<@${game.targetId}>: ${emojiMap[game.targetChoice]} **${game.targetChoice}**\n\n${result}`,
       )
       .setColor(0x3498db)
       .setTimestamp();
@@ -625,18 +892,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const game = tttGames.get(msgId);
 
-    if (!game) { await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 }); return; }
+    if (!game) {
+      await interaction.reply({ content: "❌ Игра не найдена.", flags: 64 });
+      return;
+    }
 
     const userId = interaction.user.id;
     const currentPlayerId = game.players[game.currentTurn];
 
     if (userId !== currentPlayerId) {
-      await interaction.reply({ content: `❌ Сейчас ход <@${currentPlayerId}>!`, flags: 64 });
+      await interaction.reply({
+        content: `❌ Сейчас ход <@${currentPlayerId}>!`,
+        flags: 64,
+      });
       return;
     }
 
     if (game.board[idx] !== null) {
-      await interaction.reply({ content: "❌ Эта клетка уже занята!", flags: 64 });
+      await interaction.reply({
+        content: "❌ Эта клетка уже занята!",
+        flags: 64,
+      });
       return;
     }
 
@@ -652,16 +928,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .setDescription(`🏆 Победил <@${currentPlayerId}> (${symbol})!`)
         .setColor(0x2ecc71)
         .setTimestamp();
-      const disabledRows = renderBoard(game.board).map((row) => { row.components.forEach((b) => b.setDisabled(true)); return row; });
-      await interaction.update({ embeds: [winnerEmbed], components: disabledRows });
+      const disabledRows = renderBoard(game.board).map((row) => {
+        row.components.forEach((b) => b.setDisabled(true));
+        return row;
+      });
+      await interaction.update({
+        embeds: [winnerEmbed],
+        components: disabledRows,
+      });
       return;
     }
 
     if (isFull) {
       tttGames.delete(msgId);
-      const drawEmbed = new EmbedBuilder().setTitle("🤝 Ничья!").setDescription("Все клетки заполнены!").setColor(0xf39c12).setTimestamp();
-      const disabledRows = renderBoard(game.board).map((row) => { row.components.forEach((b) => b.setDisabled(true)); return row; });
-      await interaction.update({ embeds: [drawEmbed], components: disabledRows });
+      const drawEmbed = new EmbedBuilder()
+        .setTitle("🤝 Ничья!")
+        .setDescription("Все клетки заполнены!")
+        .setColor(0xf39c12)
+        .setTimestamp();
+      const disabledRows = renderBoard(game.board).map((row) => {
+        row.components.forEach((b) => b.setDisabled(true));
+        return row;
+      });
+      await interaction.update({
+        embeds: [drawEmbed],
+        components: disabledRows,
+      });
       return;
     }
 
@@ -671,11 +963,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const updatedEmbed = new EmbedBuilder()
       .setTitle("❌ Крестики-нолики ⭕")
-      .setDescription(`<@${game.players[0]}> ❌ vs <@${game.players[1]}> ⭕\n\n🎯 Ход: <@${nextPlayer}> (${nextSymbol})`)
+      .setDescription(
+        `<@${game.players[0]}> ❌ vs <@${game.players[1]}> ⭕\n\n🎯 Ход: <@${nextPlayer}> (${nextSymbol})`,
+      )
       .setColor(0x3498db)
       .setTimestamp();
 
-    await interaction.update({ embeds: [updatedEmbed], components: renderBoard(game.board) });
+    await interaction.update({
+      embeds: [updatedEmbed],
+      components: renderBoard(game.board),
+    });
     return;
   }
 
@@ -684,9 +981,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const msgId = interaction.message.id;
     const duelData = duelRequests.get(msgId);
 
-    if (!duelData) { await interaction.reply({ content: "❌ Вызов устарел.", flags: 64 }); return; }
+    if (!duelData) {
+      await interaction.reply({ content: "❌ Вызов устарел.", flags: 64 });
+      return;
+    }
     if (interaction.user.id !== duelData.targetId) {
-      await interaction.reply({ content: "❌ Этот вызов не для тебя!", flags: 64 });
+      await interaction.reply({
+        content: "❌ Этот вызов не для тебя!",
+        flags: 64,
+      });
       return;
     }
 
@@ -695,14 +998,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (customId === "duel_decline") {
       const e = new EmbedBuilder()
         .setTitle("🏳️ Вызов отклонён")
-        .setDescription(`<@${duelData.targetId}> отказался от дуэли с <@${duelData.hostId}>.`)
+        .setDescription(
+          `<@${duelData.targetId}> отказался от дуэли с <@${duelData.hostId}>.`,
+        )
         .setColor(0x95a5a6)
         .setTimestamp();
       await interaction.update({ embeds: [e], components: [] });
       return;
     }
 
-    const resultEmbed = resolveDuel(duelData.hostId, duelData.targetId, duelData.prize);
+    const resultEmbed = resolveDuel(
+      duelData.hostId,
+      duelData.targetId,
+      duelData.prize,
+    );
     await interaction.update({ embeds: [resultEmbed], components: [] });
     return;
   }
@@ -722,7 +1031,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           .setStyle(TextInputStyle.Short)
           .setPlaceholder("Кратко опишите суть обращения")
           .setRequired(true)
-          .setMaxLength(100)
+          .setMaxLength(100),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
@@ -731,8 +1040,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
           .setStyle(TextInputStyle.Paragraph)
           .setPlaceholder("Опишите вашу проблему как можно подробнее")
           .setRequired(true)
-          .setMaxLength(1000)
-      )
+          .setMaxLength(1000),
+      ),
     );
 
     await interaction.showModal(modal);
@@ -741,27 +1050,56 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (customId === "ticket_claim") {
     const ticket = openTickets.get(interaction.channelId);
-    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+    if (!ticket) {
+      await interaction.reply({
+        content: "❌ Данные тикета не найдены.",
+        flags: 64,
+      });
+      return;
+    }
 
     const setup = ticketSetups.get(ticket.guildId);
     const member = interaction.guild?.members.cache.get(interaction.user.id);
     const isStaff = setup && member?.roles.cache.has(setup.staffRoleId);
 
-    if (!isStaff) { await interaction.reply({ content: "❌ Только сотрудники могут взять тикет.", flags: 64 }); return; }
-    if (ticket.claimedBy) { await interaction.reply({ content: `❌ Тикет уже взят <@${ticket.claimedBy}>.`, flags: 64 }); return; }
+    if (!isStaff) {
+      await interaction.reply({
+        content: "❌ Только сотрудники могут взять тикет.",
+        flags: 64,
+      });
+      return;
+    }
+    if (ticket.claimedBy) {
+      await interaction.reply({
+        content: `❌ Тикет уже взят <@${ticket.claimedBy}>.`,
+        flags: 64,
+      });
+      return;
+    }
 
     ticket.claimedBy = interaction.user.id;
     ticket.claimedByName = interaction.user.username;
     saveTicketState();
 
-    await interaction.update({ embeds: [buildTicketEmbed(ticket, "claimed")], components: [buildTicketButtons(true)] });
-    await interaction.followUp({ content: `👷 Тикет взял <@${interaction.user.id}>. Скоро с вами свяжутся!` });
+    await interaction.update({
+      embeds: [buildTicketEmbed(ticket, "claimed")],
+      components: [buildTicketButtons(true)],
+    });
+    await interaction.followUp({
+      content: `👷 Тикет взял <@${interaction.user.id}>. Скоро с вами свяжутся!`,
+    });
     return;
   }
 
   if (customId === "ticket_close") {
     const ticket = openTickets.get(interaction.channelId);
-    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+    if (!ticket) {
+      await interaction.reply({
+        content: "❌ Данные тикета не найдены.",
+        flags: 64,
+      });
+      return;
+    }
 
     const setup = ticketSetups.get(ticket.guildId);
     const member = interaction.guild?.members.cache.get(interaction.user.id);
@@ -769,7 +1107,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const isOwner = interaction.user.id === ticket.userId;
 
     if (!isStaff && !isOwner) {
-      await interaction.reply({ content: "❌ Закрыть тикет может только его автор или сотрудник.", flags: 64 });
+      await interaction.reply({
+        content: "❌ Закрыть тикет может только его автор или сотрудник.",
+        flags: 64,
+      });
       return;
     }
 
@@ -777,19 +1118,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
       .setTitle("🔒 Закрыть тикет?")
       .setDescription(
         "После закрытия:\n" +
-        "• Транскрипт будет сохранён в лог-канал\n" +
-        "• Канал будет **удалён**\n\n" +
-        "Вы уверены?"
+          "• Транскрипт будет сохранён в лог-канал\n" +
+          "• Канал будет **удалён**\n\n" +
+          "Вы уверены?",
       )
       .setColor(0xe74c3c)
       .setTimestamp();
 
     const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId("ticket_confirm_close").setLabel("✅ Закрыть").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("ticket_cancel_close").setLabel("❌ Отменить").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("ticket_confirm_close")
+        .setLabel("✅ Закрыть")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("ticket_cancel_close")
+        .setLabel("❌ Отменить")
+        .setStyle(ButtonStyle.Secondary),
     );
 
-    await interaction.reply({ embeds: [confirmEmbed], components: [confirmRow] });
+    await interaction.reply({
+      embeds: [confirmEmbed],
+      components: [confirmRow],
+    });
     return;
   }
 
@@ -801,38 +1151,56 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (customId === "ticket_confirm_close") {
     const ticket = openTickets.get(interaction.channelId);
-    if (!ticket) { await interaction.reply({ content: "❌ Данные тикета не найдены.", flags: 64 }); return; }
+    if (!ticket) {
+      await interaction.reply({
+        content: "❌ Данные тикета не найдены.",
+        flags: 64,
+      });
+      return;
+    }
 
     await interaction.deferUpdate().catch(() => {});
     await interaction.message.delete().catch(() => {});
 
-    const notif = await (interaction.channel as TextChannel | null)?.send("🔒 Закрываю тикет, сохраняю транскрипт...").catch(() => null);
+    const notif = await (interaction.channel as TextChannel | null)
+      ?.send("🔒 Закрываю тикет, сохраняю транскрипт...")
+      .catch(() => null);
 
-    const transcript = await generateTranscript(interaction.channel as TextChannel, ticket);
+    const transcript = await generateTranscript(
+      interaction.channel as TextChannel,
+      ticket,
+    );
 
     const setup = ticketSetups.get(ticket.guildId);
     if (setup) {
       try {
-        const logCh = await interaction.client.channels.fetch(setup.logChannelId);
+        const logCh = await interaction.client.channels.fetch(
+          setup.logChannelId,
+        );
         if (logCh && "send" in logCh) {
           const paddedNum = String(ticket.ticketNumber).padStart(4, "0");
           const logEmbed = new EmbedBuilder()
             .setTitle(`📋 Тикет #${paddedNum} закрыт`)
             .setDescription(
               `**📋 Тема:** ${ticket.subject}\n\n` +
-              `**👤 Автор:** <@${ticket.userId}>\n` +
-              `**📅 Открыт:** <t:${Math.floor(ticket.createdAt / 1000)}:F>\n` +
-              `**🔒 Закрыт:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-              `**👷 Взял:** ${ticket.claimedBy ? `<@${ticket.claimedBy}>` : "—"}\n` +
-              `**🔐 Закрыл:** <@${interaction.user.id}>`
+                `**👤 Автор:** <@${ticket.userId}>\n` +
+                `**📅 Открыт:** <t:${Math.floor(ticket.createdAt / 1000)}:F>\n` +
+                `**🔒 Закрыт:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+                `**👷 Взял:** ${ticket.claimedBy ? `<@${ticket.claimedBy}>` : "—"}\n` +
+                `**🔐 Закрыл:** <@${interaction.user.id}>`,
             )
             .setColor(0x95a5a6)
             .setFooter({ text: "ELITE ONLINE • Система тикетов" })
             .setTimestamp();
 
           const buf = Buffer.from(transcript, "utf-8");
-          const attachment = new AttachmentBuilder(buf, { name: `transcript-${paddedNum}.txt` });
-          await (logCh as { send: (opts: unknown) => Promise<unknown> }).send({ embeds: [logEmbed], files: [attachment] });
+          const attachment = new AttachmentBuilder(buf, {
+            name: `transcript-${paddedNum}.txt`,
+          });
+          await (logCh as { send: (opts: unknown) => Promise<unknown> }).send({
+            embeds: [logEmbed],
+            files: [attachment],
+          });
         }
       } catch (err) {
         logger.warn({ err }, "Не удалось отправить транскрипт в лог-канал");
@@ -842,7 +1210,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     openTickets.delete(interaction.channelId);
     saveTicketState();
 
-    if (notif) await notif.edit("✅ Транскрипт сохранён. Канал удаляется...").catch(() => {});
+    if (notif)
+      await notif
+        .edit("✅ Транскрипт сохранён. Канал удаляется...")
+        .catch(() => {});
     await new Promise((r) => setTimeout(r, 3000));
     await interaction.channel?.delete().catch(() => {});
     return;
@@ -860,13 +1231,16 @@ export async function startBot() {
 
   // Keep-alive: пинг себя каждые 4 минуты чтобы не отключаться
   const port = process.env["PORT"] ?? "8080";
-  setInterval(async () => {
-    try {
-      await fetch(`http://localhost:${port}/api/healthz`);
-    } catch {
-      // ignore
-    }
-  }, 4 * 60 * 1000);
+  setInterval(
+    async () => {
+      try {
+        await fetch(`http://localhost:${port}/api/healthz`);
+      } catch {
+        // ignore
+      }
+    },
+    4 * 60 * 1000,
+  );
 
   await client.login(token);
 }

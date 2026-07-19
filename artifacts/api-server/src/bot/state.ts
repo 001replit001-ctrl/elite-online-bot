@@ -27,6 +27,7 @@ export interface Giveaway {
   ended: boolean;
   winnersCount: number;
   threadId?: string;
+  endTime: number;
 }
 
 export interface KnoGame {
