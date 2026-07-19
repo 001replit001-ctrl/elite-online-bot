@@ -19,6 +19,21 @@ const client = new Client({
   ],
   partials: [Partials.Channel],
 });
+client.on("error", (err) => {
+  console.error("❌ Discord client error:", err);
+});
+
+client.on("shardDisconnect", (event, shardId) => {
+  console.error(`❌ Shard ${shardId} отключился`, event);
+});
+
+client.on("shardReconnecting", (shardId) => {
+  console.log(`🔄 Shard ${shardId} переподключается`);
+});
+
+client.on("shardReady", (shardId) => {
+  console.log(`✅ Shard ${shardId} подключён`);
+});
 
 const commands = new Collection<string, Command>();
 
