@@ -231,7 +231,7 @@ export const rozygrysh: Command = {
     }, duration);
 
     await interaction.editReply(
-      "<a:1000022454:1521448449407455363> Розыгрыш создан!",
+      "<a:1000027851:1528342124704305265> Розыгрыш создан!",
     );
   },
 };
