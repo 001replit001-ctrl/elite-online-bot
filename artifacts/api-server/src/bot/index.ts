@@ -638,6 +638,52 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
     return;
   }
+    if (interaction.isButton()) {
+    if (interaction.customId.startsWith("verify_role_")) {
+      const roleId = interaction.customId.replace("verify_role_", "");
+
+      const role = interaction.guild?.roles.cache.get(roleId);
+
+      if (!role) {
+        return interaction.reply({
+          content: "❌ Роль верификации не найдена.",
+          flags: 64,
+        });
+      }
+
+      const member = interaction.member;
+
+      if (!member || !("roles" in member)) {
+        return interaction.reply({
+          content: "❌ Не удалось получить пользователя.",
+          flags: 64,
+        });
+      }
+
+      try {
+        if (member.roles.cache.has(role.id)) {
+          return interaction.reply({
+            content: "✅ Вы уже прошли верификацию.",
+            flags: 64,
+          });
+        }
+
+        await member.roles.add(role);
+
+        return interaction.reply({
+          content: "✅ Верификация успешно пройдена!",
+          flags: 64,
+        });
+      } catch (err) {
+        logger.error({ err }, "Ошибка выдачи роли верификации");
+
+        return interaction.reply({
+          content: "❌ Не удалось выдать роль.",
+          flags: 64,
+        });
+      }
+    }
+  }
 
   // ── Modal submit ──
   if (interaction.isModalSubmit()) {
